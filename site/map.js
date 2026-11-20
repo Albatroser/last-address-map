@@ -169,18 +169,21 @@ function dotStyle(n) {
 }
 let pickedYear = 0; // 0 — все годы
 let markYears = () => {}; // подсветка годов на таймлайне, задаётся после загрузки данных
+let pickedHouse = null; // дом, окно которого сейчас открыто
 let pickedStreet = null; // набор домов улицы, выбранной в поиске, или null
 const shown = m => pickedYear ? (m.byYear[pickedYear] || 0) : m.n;
 const RED = '#ff3b2f', GREY = '#8d8f94';
-// Выбрана улица в поиске — красными остаются только её дома. Выбран год: дома, где в этот год кого-то расстреляли, — такие же полупрозрачные красные круги, как на всех годах, поверх остальных
+// Открыт дом — красным остаётся только он. Выбрана улица в поиске — красными остаются только её дома. Выбран год: дома, где в этот год кого-то расстреляли, — такие же полупрозрачные красные круги, как на всех годах, поверх остальных
 // (размер — по числу за этот год); все прочие дома остаются на месте, но серые (размер — по общему числу).
 function redrawDots() {
-  const filtered = pickedYear || pickedStreet, bright = [];
+  // открытый дом: красным остаётся только он; если он стоит на выбранной улице — вся улица
+  const house = pickedHouse && !(pickedStreet && pickedStreet.has(pickedHouse)) ? pickedHouse : null;
+  const filtered = pickedYear || pickedStreet || house, bright = [];
   dots.forEach(m => {
-    const n = shown(m), on = n && (!pickedStreet || pickedStreet.has(m));
+    const n = shown(m), on = house ? m === house : n && (!pickedStreet || pickedStreet.has(m));
     if (!filtered) m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, dotStyle(n)));
-    else if (on) { // дом подходит под выбранный год и выбранную улицу: такой же полупрозрачный красный круг, как обычно
-      const st = dotStyle(n);
+    else if (on) { // такой же полупрозрачный красный круг, как обычно
+      const st = dotStyle(n || m.n);
       m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, st, { radius: Math.max(2, st.radius) }));
       bright.push(m);
     } else m.setStyle({ color: GREY, fillColor: GREY, radius: dotStyle(m.n).radius, weight: 0, fillOpacity: 0.3 }); // остальные — серые
@@ -188,6 +191,8 @@ function redrawDots() {
   bright.forEach(m => m.bringToFront());
   markYears();
 }
+map.on('popupopen', e => { pickedHouse = e.popup._source && e.popup._source.byYear ? e.popup._source : null; redrawDots(); });
+map.on('popupclose', () => { pickedHouse = null; redrawDots(); });
 map.on('zoomend', redrawDots);
 
 // Окно дома. Сверху сводка: сколько человек, квартир, какие годы.
