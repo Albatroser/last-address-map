@@ -182,26 +182,34 @@ function popupHtml(addr, people) {
   let sum = ppl.length + ' ' + plural(ppl.length, 'человек', 'человека', 'человек');
   if (apts) sum += ' · ' + apts + ' ' + plural(apts, 'квартира', 'квартиры', 'квартир');
   if (years.length) sum += ' · ' + (y0 === y1 ? y0 : y0 + '–' + y1);
+  // если на таймлайне выбран год: сначала расстрелянные в этот год, остальные ниже и серым
+  const inYear = pickedYear ? ppl.filter(p => yearOf(p[3]) === pickedYear) : ppl;
+  const rows = pickedYear ? inYear.concat(ppl.filter(p => yearOf(p[3]) !== pickedYear)) : ppl;
+  let sepDone = false;
+  if (pickedYear) sum = 'в ' + pickedYear + ' году — ' + inYear.length + ' из ' + ppl.length + ' · ' + sum;
   return '<div class="pp"><h3>' + esc(addr) + '</h3><div class="sum">' + sum + '</div>' +
-    ppl.map(([apt, name, by, ex, bur, bio, born, nat, party, job]) => {
+    rows.map(([apt, name, by, ex, bur, bio, born, nat, party, job]) => {
+      const dim = pickedYear && yearOf(ex) !== pickedYear;
       const rest = [
         apt ? 'кв. ' + esc(apt) + (inApt[apt] > 1 ? ' (в этой квартире расстреляно ' + inApt[apt] + ')' : '') : '',
         bur ? 'захоронение: ' + esc(bur) : '',
         born ? 'род.: ' + esc(born) : '', esc(nat || ''), esc(party || ''),
       ].filter(Boolean).join(' · ');
-      return '<div class="p"><div><span class="n">' + esc(name) + '</span> <span class="life">' + (by ? by + ' – ' : 'расстрел ') + esc(ex) + '</span></div>' +
+      const sep = dim && !sepDone ? (sepDone = true, '<div class="other">Расстреляны в другие годы</div>') : '';
+      return sep + '<div class="p' + (dim ? ' dim' : '') + '"><div><span class="n">' + esc(name) + '</span> <span class="life">' + (by ? by + ' – ' : 'расстрел ') + esc(ex) + '</span></div>' +
         '<div class="job">' + esc(nat ? job : bio) + '</div><div class="m">' + rest + '</div></div>';
     }).join('') + '</div>';
 }
 fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   let people = 0;
+  const padTop = document.getElementById('info').offsetHeight + 24; // окно дома не должно уходить под плашку
   const cnt = document.getElementById('cnt');
   D.forEach(([lat, lon, addr, ppl]) => {
     people += ppl.length;
     const m = L.circleMarker([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
     m.n = ppl.length; m.byYear = {}; dots.push(m);
     ppl.forEach(q => { const y = yearOf(q[3]); if (y) m.byYear[y] = (m.byYear[y] || 0) + 1; });
-    m.bindPopup(() => popupHtml(addr, ppl), { maxWidth: 360 });
+    m.bindPopup(() => popupHtml(addr, ppl), { maxWidth: 360, autoPanPaddingTopLeft: [10, padTop] });
     m.addTo(map);
   });
   const fmt = n => n.toLocaleString('ru');
