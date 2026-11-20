@@ -46,7 +46,12 @@ const VIEWS = {
 };
 const COLORS = { red: '#ff3b2f', white: '#f1eee6', amber: '#ffc46b', black: '#111111' };
 const SIZES = { s: ['Мелко', 0.7], m: ['Средне', 1], l: ['Крупно', 1.5] };
-const BGS = { dark: 'Тёмный', light: 'Светлый' };
+const BGS = { dark: 'Контуры тёмные', light: 'Контуры светлые', street: 'Карта улиц', gray: 'Карта серая' };
+// Настоящие карты — тайлы Esri (нужен интернет). «Карта улиц» затемняется фильтром, как в черновике.
+const TILES = {
+  street: { urls: ['World_Street_Map'], max: 19, filter: 'invert(1) hue-rotate(180deg) brightness(.75) contrast(.9) grayscale(.7)' },
+  gray: { urls: ['Canvas/World_Dark_Gray_Base', 'Canvas/World_Dark_Gray_Reference'], max: 16, filter: '' },
+};
 const q = new URLSearchParams(location.search);
 const st = { v: VIEWS[q.get('v')] ? q.get('v') : 'fill', c: COLORS[q.get('c')] ? q.get('c') : 'red', s: SIZES[q.get('s')] ? q.get('s') : 'm', b: BGS[q.get('b')] ? q.get('b') : 'dark' };
 if (st.b === 'light') document.documentElement.classList.add('light');
@@ -54,7 +59,12 @@ if (st.b === 'light') document.documentElement.classList.add('light');
 Proto.load().then(data => {
   const map = Proto.makeMap(data.base, 16);
   const light = st.b === 'light';
-  Proto.drawBase(map, data.base, light
+  const tiles = TILES[st.b];
+  if (tiles) {
+    tiles.urls.forEach(u => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/' + u + '/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: tiles.max }).addTo(map));
+    map.getPane('tilePane').style.filter = tiles.filter;
+    document.getElementById('src').textContent = 'Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский. Карта: © Esri и её поставщики данных.';
+  } else Proto.drawBase(map, data.base, light
     ? { green: { fillColor: '#e2e4dc' }, street: { a: '#fbfbf8', b: '#fbfbf8', p: '#fbfbf8' }, building: () => ({ color: '#d2d1ca', fillColor: '#dfded8', weight: 0.6 }) }
     : { green: { fillColor: '#0f1110' }, street: { a: '#0a0b0c', b: '#0a0b0c', p: '#0a0b0c' }, building: () => ({ color: '#202226', fillColor: '#191b1e', weight: 0.6 }) });
   const lines = Proto.streetLines(data.base), lab = Proto.Labeler(map);
@@ -84,12 +94,13 @@ Proto.load().then(data => {
     });
     const cur = sel && sel.get();
     if (cur) ring.setLatLng([cur.lat, cur.lon]).setRadius(cur.r + 5).setStyle({ color: light ? '#141414' : '#ece8de' }).addTo(group);
-    lab.begin();
-    if (map.getZoom() >= 16) lab.streets(lines, '10px Helvetica, Arial, sans-serif', 'st', 12);
+    labels();
   }
+  // подписи улиц рисуются только на контурной подложке: на настоящей карте они уже есть
+  function labels() { lab.begin(); if (!tiles && map.getZoom() >= 16) lab.streets(lines, '10px Helvetica, Arial, sans-serif', 'st', 12); }
   sel = Proto.selection({ data, map, onSelect: () => draw(), render: h => Proto.card(h, data) });
   map.on('zoomend', draw);
-  map.on('moveend', () => { lab.begin(); if (map.getZoom() >= 16) lab.streets(lines, '10px Helvetica, Arial, sans-serif', 'st', 12); });
+  map.on('moveend', labels);
 
   // кнопки: вид, цвет и размер меняются на месте, фон требует перерисовать подложку — страница перезагружается
   const url = () => { const p = new URLSearchParams(st); history.replaceState(null, '', '?' + p); };
