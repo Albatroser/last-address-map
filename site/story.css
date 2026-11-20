@@ -1,54 +1,101 @@
-/* Вступление перед свободной картой (story.js). Пока оно идёт, элементы карты скрыты, карта не реагирует на нажатия. */
+/* Вступление перед свободной картой (story.js): лента карточек с прокруткой поверх карты.
+   Пока оно идёт, элементы свободной карты скрыты; карту двигает только прокрутка, нажимать можно на горящие дома. */
 body.story-on #search,body.story-on #time,body.story-on .leaflet-control-container{display:none!important}
+body.story-on{overflow:hidden}
+/* пока идёт вступление, карту можно двигать мышью: кнопки + и − видны, стоят справа внизу */
+body.story-on.story-move .leaflet-control-container{display:block!important}
+body.story-on.story-move .leaflet-control-attribution{display:none!important}
+body.story-on.story-move .leaflet-top.leaflet-left{top:auto;left:auto;right:10px;bottom:24px}
+body.story-on.story-move #map{cursor:grab}
 #story-veil{position:fixed;inset:0;z-index:900;background:#0e0f11;opacity:1;transition:opacity 1.4s}
 #story-veil.clear{opacity:0}
-#story-veil.dim{opacity:.78}
 #story-veil.pass{pointer-events:none}
+#story-skip{position:fixed;z-index:920;top:14px;right:16px;color:#777;font:13px/1 system-ui,sans-serif;cursor:pointer;text-decoration:underline;text-decoration-color:#444;text-underline-offset:3px}
+#story-skip:hover{color:#ccc}
+
+/* лента: сама пропускает нажатия к карте, карточки — нет */
+#story{position:fixed;inset:0;z-index:910;overflow-y:auto;overflow-x:hidden;pointer-events:none;color:#ddd;font:19px/1.5 system-ui,sans-serif;
+  background:linear-gradient(90deg,rgba(14,15,17,.85) 0,rgba(14,15,17,.6) 34%,rgba(14,15,17,0) 62%);scrollbar-width:none}
+#story::-webkit-scrollbar{display:none}
+#story .step{min-height:85vh;display:flex;align-items:center;padding:0 6vw;box-sizing:border-box}
+#story .step.first,#story .step.city{min-height:100vh}
+#story .step.ask{min-height:100vh;padding-top:12vh;padding-bottom:12vh}
+#story .card{max-width:460px;width:100%;pointer-events:auto}
+#story .ask .card{font-size:16px}
+#story p{margin:0 0 12px}
+#story .ask p{margin-bottom:8px}
+#story .where{font-size:30px;line-height:1.2;font-weight:600;color:#fff}
+#story .foe{color:#ff3b2f;font-weight:inherit}
+#story .age .card>p:first-child,#story .age .card>p:nth-child(2){font-size:19px}
+#story .cue{margin-top:28px;color:#999;font-size:15px}
+#story .draft{margin-top:10px;color:#a8792c;font-size:13px}
+#story .quiet{color:#999;font-size:14px}
+#story .grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;max-width:300px;margin:18px 0 12px}
+#story .grid i{aspect-ratio:1;background:#4a4d54;border-radius:2px}
+#story .grid i.on{background:#ff3b2f}
+#story .big{font-size:44px;line-height:1.1;font-weight:600;color:#ff3b2f;margin-bottom:6px;font-variant-numeric:tabular-nums}
+#story .big.white{font-size:52px;color:#fff}
+/* сцены с перелётами: человек, дом, улица */
+#story .scene .card{font-size:17px}
+#story .scene .card>p:first-child{font-size:21px;color:#fff}
+#story .scene .name{margin-top:14px}
+#story .line{margin:0 0 9px;font-size:14px;color:#aaa}
+#story .line b{color:#ff6b5b;font-size:15px}
+#story .gap{margin:0;height:6px}
+/* квадраты по стране: годы */
+#story .grid.years i{background:#34363c}
+#story .grid.years i.peak,#story .leg i.peak{background:#8b8e96}
+#story .grid.years i.on,#story .leg i.on{background:#ff3b2f}
+#story .leg i.rest{background:#34363c}
+/* полоски: национальности */
+#story .hbars{margin:14px 0 10px;max-width:340px}
+#story .hbar{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:14px;color:#bbb}
+#story .hbar span{width:64px;flex:none}
+#story .hbar i{height:12px;background:#ff3b2f;border-radius:2px;min-width:2px;flex:none;max-width:200px}
+#story .hbar b{color:#fff;font-weight:600;font-variant-numeric:tabular-nums}
+/* сто квадратов: партийность */
+#story .grid.waffle{max-width:260px;gap:3px;margin:14px 0 12px}
+#story .grid.waffle i.in,#story .leg i.in{background:#ff3b2f}
+#story .grid.waffle i.cand,#story .leg i.cand{background:#b3463d}
+#story .grid.waffle i.ex,#story .leg i.ex{background:#7a3a35}
+#story .grid.waffle i.no,#story .leg i.no{background:#5b5e66}
+#story .grid.waffle i.other,#story .leg i.other{background:#2f3136}
+#story .leg{margin:0 0 4px;font-size:14px;color:#bbb;display:flex;align-items:center;gap:8px}
+#story .leg i{width:11px;height:11px;border-radius:2px;flex:none}
+/* подписанные места на карте (тюрьмы, места захоронения) */
+.place{pointer-events:none;animation:place-in .6s ease both}
+@keyframes place-in{from{opacity:0}to{opacity:1}}
+.place i{position:absolute;left:-6px;top:-6px;width:10px;height:10px;border-radius:50%;border:2px solid #fff;background:#0e0f11}
+.place span{position:absolute;left:11px;top:-9px;white-space:nowrap;color:#fff;font:12px/18px system-ui,sans-serif;text-shadow:0 0 4px #000,0 0 4px #000}
+/* вопросы */
+#story .q{display:block;font-size:22px;line-height:1.3;font-weight:600;color:#fff;margin:22px 0 10px}
+#story .job .q{margin-top:0}
+#story .ans{margin-top:14px}
+#story .ans:empty{margin:0}
+#story .name{font-size:19px;line-height:1.25;font-weight:600;color:#ff6b5b;margin-bottom:4px}
+#story .lead{margin-top:14px}
 #story .row{margin:0 0 3px;color:#aaa;font-size:14px}
 #story .row span{color:#777;margin-right:6px}
 #story .row span::after{content:':'}
-#story{position:fixed;z-index:910;left:0;right:0;color:#ccc;font:16px/1.5 system-ui,sans-serif;box-sizing:border-box}
-/* вопросы: колонка слева, на телефоне — сверху */
-#story.panel{top:0;right:auto;width:400px;max-width:100%;max-height:100%;overflow:auto;padding:26px 24px 30px;background:linear-gradient(90deg,rgba(14,15,17,.95) 78%,rgba(14,15,17,0))}
-#story .block{animation:story-in .9s both;margin-bottom:26px}
-#story .block:last-child{margin-bottom:0}
-#story.center{top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;padding:0 28px;max-width:560px;margin:0 auto}
-#story.sheet{bottom:0;padding:44px 22px 22px;background:linear-gradient(rgba(14,15,17,0),rgba(14,15,17,.94) 36%)}
-#story.sheet>div{max-width:520px;margin:0 auto}
-#story.center>div,#story.sheet>div{animation:story-in .9s both}
-@keyframes story-in{from{opacity:0}to{opacity:1}}
-#story p{margin:0 0 8px}
-#story .where{font-size:26px;line-height:1.2;font-weight:600;color:#fff;margin-bottom:10px}
-#story .q{display:block;font-size:21px;line-height:1.3;font-weight:600;color:#fff;margin-bottom:10px}
-#story .ans{margin-top:14px}
-#story .ans:empty{margin:0}
-#story .big{font-size:44px;line-height:1.1;font-weight:600;color:#ff3b2f;margin-bottom:6px;font-variant-numeric:tabular-nums}
-#story.sheet .big{color:#fff;margin-bottom:14px}
-#story .name{font-size:19px;line-height:1.25;font-weight:600;color:#ff6b5b;margin-bottom:4px}
-#story .quiet{color:#888;font-size:14px}
-#story .lead{margin-top:14px}
-#story .gap{margin-top:18px}
-#story .you{color:#fff;font-weight:600}
-#story .foe{color:#ff3b2f;font-weight:inherit}
-#story input{width:100%;box-sizing:border-box;background:rgba(15,15,15,.9);color:#eee;border:1px solid #444;border-radius:6px;padding:9px 12px;font:inherit;outline:0}
-#story input:focus{border-color:#888}
-#story input::placeholder{color:#777}
-#story #s-age{width:110px;font-size:22px}
+#story input{box-sizing:border-box;background:rgba(15,15,15,.9);color:#eee;border:1px solid #555;border-radius:6px;padding:9px 12px;font:22px/1.3 system-ui,sans-serif;outline:0;width:110px}
+#story input:focus{border-color:#aaa}
 #story .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-#story .chips button{background:none;border:1px solid #555;border-radius:16px;color:#ccc;font:14px/1.3 system-ui,sans-serif;padding:5px 12px;cursor:pointer;margin:0}
+#story .chips button{background:rgba(15,15,15,.6);border:1px solid #555;border-radius:16px;color:#ccc;font:14px/1.3 system-ui,sans-serif;padding:5px 12px;cursor:pointer;margin:0}
 #story .chips button:hover{border-color:#aaa;color:#fff}
 #story .chips button.on{background:#ff3b2f;border-color:#ff3b2f;color:#fff}
-#story .ans>button,#story.center button,#story.sheet button{margin-top:14px;background:none;border:1px solid #777;border-radius:6px;color:#fff;font:inherit;padding:8px 18px;cursor:pointer}
-#story .ans>button:hover,#story.center button:hover,#story.sheet button:hover{border-color:#fff}
-#story button[disabled]{visibility:hidden}
-#story .go{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
-#story .go button{margin-top:0}
+/* финал */
+#story .fin .card{font-size:17px}
+#story .go{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+#story .go button{background:none;border:1px solid #777;border-radius:6px;color:#fff;font:inherit;padding:8px 18px;cursor:pointer}
+#story .go button:hover{border-color:#fff}
 #story .go .btn{border:1px solid #ff3b2f;background:#ff3b2f;border-radius:6px;color:#fff;font:inherit;padding:8px 18px;text-decoration:none}
 #story .go .btn:hover{background:#ff5347;border-color:#ff5347}
-#story-skip{position:fixed;z-index:920;top:14px;right:16px;color:#777;font:13px/1 system-ui,sans-serif;cursor:pointer;text-decoration:underline;text-decoration-color:#444;text-underline-offset:3px}
-#story-skip:hover{color:#ccc}
 @media (max-width:759px){
-  #story{font-size:15px}
-  #story.panel{width:100%;max-height:62%;padding:20px 18px 26px;background:linear-gradient(rgba(14,15,17,.96) 86%,rgba(14,15,17,0))}
+  #story{font-size:17px;background:linear-gradient(rgba(14,15,17,.15),rgba(14,15,17,.7))}
+  #story .step{padding:0 20px 14vh;align-items:flex-end}
+  #story .step.ask{padding-top:30vh;padding-bottom:10vh}
+  #story .ask .card{background:rgba(14,15,17,.82);border-radius:10px;padding:16px;box-sizing:border-box}
+  #story .where{font-size:26px}
   #story .big{font-size:36px}
+  #story .big.white{font-size:40px}
 }
