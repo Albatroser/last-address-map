@@ -220,39 +220,41 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   const total = fmt(D.length) + ' ' + plural(D.length, 'дом', 'дома', 'домов') + ', ' + fmt(people) + ' ' + plural(people, 'человек', 'человека', 'человек');
   cnt.textContent = total + ' (из 11 789: у остальных нет координат)';
 
-  // ---------- общий таймлайн: расстрелы по годам; нажатие на год выделяет его на карте, остальные дома бледнеют ----------
+  // ---------- общий таймлайн: ползунок по годам; выбранный год выделяется на карте, остальные дома бледнеют ----------
   const byYear = {}, housesIn = {};
   dots.forEach(m => Object.keys(m.byYear).forEach(y => { byYear[y] = (byYear[y] || 0) + m.byYear[y]; housesIn[y] = (housesIn[y] || 0) + 1; }));
-  const ys = Object.keys(byYear).map(Number), y0 = Math.min(...ys), y1 = Math.max(...ys), top = Math.max(...Object.values(byYear));
-  const bars = document.getElementById('time-bars'), head = document.getElementById('time-head'), panel = document.getElementById('time-panel');
-  function pick(y) {
-    pickedYear = y === pickedYear ? 0 : y;
+  const ys = Object.keys(byYear).map(Number), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const slider = document.getElementById('time-range'), head = document.getElementById('time-head'), panel = document.getElementById('time-panel');
+  const ppl = n => fmt(n) + ' ' + plural(n, 'человек', 'человека', 'человек'), hs = n => fmt(n) + ' ' + plural(n, 'дом', 'дома', 'домов');
+  function pick(y) { // y = 0 — все годы
+    pickedYear = y;
     redrawDots();
     map.closePopup();
-    [...bars.children].forEach(b => b.classList.toggle('on', +b.dataset.y === pickedYear));
-    head.innerHTML = pickedYear
-      ? '<b>' + pickedYear + '</b> — ' + fmt(byYear[pickedYear]) + ' ' + plural(byYear[pickedYear], 'человек', 'человека', 'человек') + ', ' + fmt(housesIn[pickedYear]) + ' ' + plural(housesIn[pickedYear], 'дом', 'дома', 'домов') + ' <button id="time-all">Все годы</button>'
-      : '<b>' + y0 + '–' + y1 + '</b> — расстрелы по годам. Над столбиком точное число; высота сжата, чтобы был виден каждый год. Нажмите на год, чтобы выделить его на карте.';
-    cnt.textContent = pickedYear ? 'Выделен ' + pickedYear + ' год: ' + fmt(housesIn[pickedYear]) + ' ' + plural(housesIn[pickedYear], 'дом', 'дома', 'домов') + ', ' + fmt(byYear[pickedYear]) + ' ' + plural(byYear[pickedYear], 'человек', 'человека', 'человек') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
-    const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(pickedYear);
+    slider.classList.toggle('idle', !y);
+    const n = byYear[y] || 0;
+    head.innerHTML = !y ? '<b>' + y0 + '–' + y1 + '</b> — все годы. Двигайте ползунок, чтобы выделить на карте один год.'
+      : '<b>' + y + '</b> — ' + (n ? ppl(n) + ', ' + hs(housesIn[y]) : 'в базе нет расстрелянных с известным адресом') + ' <button id="time-all">Все годы</button>';
+    cnt.textContent = y ? 'Выделен ' + y + ' год: ' + (n ? hs(housesIn[y]) + ', ' + ppl(n) : 'никого') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
+    const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(0);
   }
+  slider.min = y0; slider.max = y1; slider.value = y0;
+  slider.oninput = () => pick(+slider.value);
+  slider.onpointerdown = () => { if (!pickedYear) pick(+slider.value); }; // первое нажатие на ползунок сразу выбирает год под ним
+  const ticks = document.getElementById('time-ticks');
   for (let y = y0; y <= y1; y++) {
-    const b = document.createElement('button'), n = byYear[y] || 0;
-    b.dataset.y = y; b.disabled = !n; b.title = y + ': ' + fmt(n);
-    // высота сжата логарифмом, иначе рядом с 1937–1938 остальные годы не видны; точное число стоит над столбиком
-    const h = n ? Math.max(6, Math.log(1 + n) / Math.log(1 + top) * 100) : 0;
-    b.innerHTML = '<i style="height:' + h.toFixed(1) + '%">' + (n ? '<em>' + n + '</em>' : '') + '</i><span>' + (y % 5 === 0 || y === y0 || y === y1 ? y : '') + '</span>';
-    b.onclick = () => pick(y);
-    bars.appendChild(b);
+    if (y % 5 && y !== y0 && y !== y1) continue;
+    const t = document.createElement('span');
+    t.textContent = y; t.style.left = ((y - y0) / (y1 - y0) * 100) + '%';
+    ticks.appendChild(t);
   }
   const btn = document.getElementById('time-btn');
   btn.hidden = false;
   btn.onclick = () => {
     panel.hidden = !panel.hidden;
     btn.textContent = panel.hidden ? 'Таймлайн' : 'Скрыть таймлайн';
-    if (panel.hidden && pickedYear) pick(pickedYear); // закрытый таймлайн не должен незаметно прятать точки
+    if (panel.hidden && pickedYear) pick(0); // закрытый таймлайн не должен незаметно менять карту
   };
-  pickedYear = -1; pick(-1); // заполнить заголовок в состоянии «все годы»
+  pick(0);
 }).catch(e => {
   document.getElementById('cnt').textContent = 'Данные не загрузились: ' + e.message + '. Страницу нужно открывать через веб-сервер, а не как файл.';
 });
