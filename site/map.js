@@ -282,33 +282,49 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
     }
   }
   let found = [], active = 0;
-  const mark = () => [...hits.children].forEach((b, k) => b.classList.toggle('on', k === active));
+  const mark = () => hits.querySelectorAll('button').forEach((b, k) => b.classList.toggle('on', k === active));
+  const row = (x, k) => {
+    const b = document.createElement('button');
+    b.innerHTML = x.street
+      ? esc(x.street) + ' <span>вся улица · ' + x.list.length + ' ' + plural(x.list.length, 'дом', 'дома', 'домов') + ' · ' + x.n + ' чел.</span>'
+      : esc(x.addr) + ' <span>' + x.m.n + ' чел.</span>';
+    b.onmousedown = e => e.preventDefault(); // чтобы строка поиска не теряла фокус раньше нажатия
+    b.onclick = () => go(x);
+    b.onmouseenter = () => { active = k; mark(); };
+    return b;
+  };
+  // Подсказка в пустой строке поиска: с чего можно начать. Улицы — список известных названий, составлен вручную
+  // (показываются только те, что есть в данных); дома — три адреса с наибольшим числом расстрелянных, считаются из данных.
+  const KNOWN = ['Арбат ул.', 'Тверская ул.', 'Чистопрудный б-р', 'Покровка ул.', 'Мясницкая ул.', 'Пречистенка ул.'];
+  const hintStreets = KNOWN.map(n => streets.get(n)).filter(Boolean);
+  const hintHouses = houses.slice().sort((a, b) => b.m.n - a.m.n).slice(0, 3);
+  function suggest() {
+    hits.textContent = ''; found = hintStreets.concat(hintHouses); active = -1;
+    const head = t => { const d = document.createElement('div'); d.className = 'head'; d.textContent = t; hits.appendChild(d); };
+    if (hintStreets.length) head('Можно начать с улицы');
+    hintStreets.forEach((x, k) => hits.appendChild(row(x, k)));
+    head('Или с дома, где расстрелянных больше всего');
+    hintHouses.forEach((x, k) => hits.appendChild(row(x, hintStreets.length + k)));
+  }
   q.oninput = () => {
     found = find(q.value); active = 0;
     hits.textContent = '';
-    if (!q.value.trim()) { if (pickedStreet) { pickedStreet = null; redrawDots(); } return; } // пустая строка поиска снимает выделение улицы
+    if (!q.value.trim()) { if (pickedStreet) { pickedStreet = null; redrawDots(); } suggest(); return; } // пустая строка поиска снимает выделение улицы
     if (!found.length) { hits.innerHTML = '<div class="none">Такой улицы или адреса нет среди домов на карте</div>'; return; }
-    found.forEach((x, k) => {
-      const b = document.createElement('button');
-      b.innerHTML = x.street
-        ? esc(x.street) + ' <span>вся улица · ' + x.list.length + ' ' + plural(x.list.length, 'дом', 'дома', 'домов') + ' · ' + x.n + ' чел.</span>'
-        : esc(x.addr) + ' <span>' + x.m.n + ' чел.</span>';
-      b.onclick = () => go(x);
-      b.onmouseenter = () => { active = k; mark(); };
-      hits.appendChild(b);
-    });
+    found.forEach((x, k) => hits.appendChild(row(x, k)));
     mark();
   };
   q.onkeydown = e => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       if (!found.length) return;
       e.preventDefault();
-      active = (active + (e.key === 'ArrowDown' ? 1 : found.length - 1)) % found.length;
+      active = active < 0 ? (e.key === 'ArrowDown' ? 0 : found.length - 1) : (active + (e.key === 'ArrowDown' ? 1 : found.length - 1)) % found.length;
       mark();
-    } else if (e.key === 'Enter' && found.length) go(found[active]);
+    } else if (e.key === 'Enter' && found.length && active >= 0) go(found[active]);
     else if (e.key === 'Escape') { hits.textContent = ''; found = []; q.blur(); }
   };
-  q.onfocus = () => { if (q.value.trim() && !hits.children.length) q.oninput(); };
+  q.onfocus = () => { if (!hits.children.length) q.oninput(); }; // пустая строка в фокусе показывает подсказку
+  q.onblur = () => { if (!q.value.trim()) { hits.textContent = ''; found = []; } };
   map.on('click', () => { hits.textContent = ''; found = []; });
   search.hidden = false;
 
