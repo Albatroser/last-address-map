@@ -326,6 +326,10 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   q.onfocus = () => { if (!hits.children.length) q.oninput(); }; // пустая строка в фокусе показывает подсказку
   q.onblur = () => { if (!q.value.trim()) { hits.textContent = ''; found = []; } };
   map.on('click', () => { hits.textContent = ''; found = []; });
+  // открыт дом не с выделенной улицы — выделение улицы снимается, строка поиска очищается
+  map.on('popupopen', e => {
+    if (pickedStreet && !pickedStreet.has(e.popup._source)) { pickedStreet = null; q.value = ''; redrawDots(); }
+  });
   search.hidden = false;
 
   // ---------- общий таймлайн: ползунок по годам; выбранный год выделяется на карте, остальные дома бледнеют ----------
