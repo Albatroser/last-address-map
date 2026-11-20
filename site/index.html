@@ -2,6 +2,7 @@
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Расстрелы в Москве — карта</title>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="story.css">
 <style>
 html,body,#map{margin:0;height:100%;background:#0e0f11}
 .leaflet-container{background:#0e0f11}
@@ -62,11 +63,13 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 #time-ticks{position:relative;height:16px;margin:2px 9px 0}
 #time-ticks span{position:absolute;top:0;transform:translateX(-50%);font-size:10px;color:#888}
 #time-head button{margin-left:8px;background:none;border:1px solid #666;border-radius:4px;color:#ddd;font:inherit;padding:1px 8px;cursor:pointer}
-</style></head><body>
+</style></head><body class="story-on">
 <div id="map"></div>
+<div id="story-veil"></div><div id="story"></div><a id="story-skip">Пропустить</a>
 <div id="search" hidden><input id="q" type="search" placeholder="Улица или адрес" autocomplete="off" aria-label="Поиск по адресу"><div id="hits"></div></div>
 <div id="msg" hidden></div>
 <div id="time"><div id="time-panel" hidden><div id="time-head"></div><div id="time-track"><div id="time-strip"></div><input id="time-range" type="range" step="1" aria-label="Год"></div><div id="time-ticks"></div></div><button id="time-btn" hidden>Таймлайн</button></div>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="map.js"></script>
+<script src="story.js"></script>
 </body></html>
