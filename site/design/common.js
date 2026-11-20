@@ -94,6 +94,7 @@
     }));
     const restyle = () => { const m = mpp(map); streets.forEach(([k, l]) => l.setStyle({ weight: Math.max(1, W[k] / m) })); };
     map.on('zoomend', restyle); restyle();
+    if (!style.building) return [];
     return base.buildings.map((r, i) => L.polygon(r, Object.assign({ interactive: false, fillOpacity: 1, weight: 1 }, style.building(i))).addTo(map));
   }
 
@@ -219,5 +220,24 @@
   }
   function fail(e) { document.getElementById('cnt').textContent = 'Данные не загрузились: ' + e.message + '. Страницу нужно открывать через веб-сервер.'; console.error(e); }
 
-  window.Proto = { load, makeMap, drawBase, mpp, streetLines, Labeler, selection, header, fail, esc, fmt, plural, people, dateKey, yearOf, M_LAT };
+  // ---------- карточка дома (выбрана Ильёй из варианта В): сводка, расстрелы по годам, список по датам ----------
+  function card(h, data) {
+    const ppl = h.people.slice().sort((a, b) => dateKey(a.shot) - dateKey(b.shot));
+    const ys = ppl.map(p => yearOf(p.shot)).filter(Boolean), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const cnt = {}; ys.forEach(y => cnt[y] = (cnt[y] || 0) + 1);
+    const top = Math.max(...Object.values(cnt));
+    let bars = '';
+    for (let y = y0; y <= y1; y++) bars += '<b' + (cnt[y] ? ' style="height:' + Math.round(cnt[y] / top * 100) + '%" title="' + y + ': ' + cnt[y] + '"' : ' class="z"') + '></b>';
+    const apts = new Set(ppl.map(p => p.apt).filter(Boolean)).size;
+    const peak = Object.keys(cnt).filter(y => cnt[y] === top);
+    return '<h2>' + esc(h.addr) + '</h2><dl class="k"><dt>Расстреляно</dt><dd>' + people(ppl.length) + '</dd>' +
+      (apts ? '<dt>Квартир</dt><dd>' + apts + '</dd>' : '') +
+      '<dt>Годы</dt><dd>' + (y0 === y1 ? y0 : y0 + '–' + y1) + '</dd></dl>' +
+      (y1 > y0 ? '<div class="yrs">' + bars + '</div><div class="ax"><span>' + y0 + '</span><span>расстрелов по годам; больше всего — ' + peak.join(', ') + ' (' + top + ')</span><span>' + y1 + '</span></div>' : '') +
+      (h.b < 0 ? '<p class="note">На современной карте дом по этому адресу не найден: точка адреса дальше ' + data.near + ' м от любого контура.</p>' : '') +
+      '<table>' + ppl.map(p => '<tr><td class="d">' + esc(p.shot) + '</td><td><div class="n">' + esc(p.name) + '</div><div class="f">' +
+        [p.born ? p.born + ' г. р.' : '', p.apt ? 'кв. ' + esc(p.apt) : '', esc(p.burial)].filter(Boolean).join(' · ') + '</div><div class="bio">' + esc(p.bio) + '</div></td></tr>').join('') + '</table>';
+  }
+
+  window.Proto = { card, load, makeMap, drawBase, mpp, streetLines, Labeler, selection, header, fail, esc, fmt, plural, people, dateKey, yearOf, M_LAT };
 })();

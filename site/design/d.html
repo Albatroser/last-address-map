@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Вариант Г — окна гаснут · прототип оформления</title>
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="card.css">
+<style>
+/* Вариант Г. Окна горят, пока человек жив, и гаснут в день расстрела. Время идёт по датам из данных. */
+:root{--bg:#08090c;--ink:#ece7dc;--soft:#8a8780;--mid:#c4c0b6;--card:#111317;--rule:#2a2d33;--street:#4d4f55}
+#play{display:flex;align-items:center;gap:10px;margin-top:10px;max-width:520px}
+#pb{flex:none;width:34px;height:34px;border:1px solid var(--ink);background:none;color:var(--ink);font:14px/1 system-ui;cursor:pointer}
+#rng{flex:1;min-width:0;accent-color:#ece7dc}
+#now{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:8px}
+#now span{font-weight:400;color:var(--soft)}
+</style></head><body>
+<div id="map"></div>
+<header id="top">
+  <h1 class="t">Арбат и окрестности</h1>
+  <div class="c" id="cnt">Загрузка…</div>
+  <div class="l">Окно горит, пока человек жив. В день расстрела оно гаснет. Окна условные: это счёт, а не расположение квартир.</div>
+  <div id="now"></div>
+  <div id="play"><button id="pb" aria-label="Пуск или пауза">▶</button><input id="rng" type="range" min="0" max="1" value="0" aria-label="Дата"></div>
+  <nav><a class="on" href="d.html">Г</a><a href="e.html">Д</a><a href="f.html">Е</a></nav>
+</header>
+<aside id="sheet" aria-hidden="true"><button id="x" aria-label="Закрыть">×</button><div id="card"></div></aside>
+<div id="src">Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский. Дома и улицы: © участники OpenStreetMap, современные контуры и названия.</div>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="common.js"></script>
+<script>
+Proto.load().then(data => {
+  const map = Proto.makeMap(data.base);
+  const used = new Set(data.houses.map(h => h.b));
+  const idle = i => ({ color: '#1d1f24', fillColor: used.has(i) ? '#17181c' : '#101115', weight: 0.7 });
+  const B = Proto.drawBase(map, data.base, { green: { fillColor: '#0a0c0b' }, street: { a: '#0d0e12', b: '#0d0e12', p: '#0d0e12' }, building: idle });
+  const lines = Proto.streetLines(data.base), lab = Proto.Labeler(map);
+
+  const CW = 6, CH = 7, WW = 3.6, WH = 4.6;
+  const ON = { fillColor: '#ffcf80', fillOpacity: 1, color: '#ffcf80', weight: 0.5, opacity: 1 };
+  const OFF = { fillColor: '#000', fillOpacity: 1, color: '#6a6048', weight: 0.8, opacity: 1 };
+  const wins = []; // все окна: {key, layer, on}
+  data.houses.forEach(h => {
+    const ppl = h.people.slice().sort((a, b) => Proto.dateKey(a.shot) - Proto.dateKey(b.shot));
+    const n = ppl.length, cols = Math.ceil(Math.sqrt(n * 1.5)), rows = Math.ceil(n / cols), kx = Proto.M_LAT * Math.cos(h.lat * Math.PI / 180);
+    ppl.forEach((p, i) => {
+      const c = i % cols, r = Math.floor(i / cols), inRow = r === rows - 1 ? n - r * cols : cols;
+      const x = (c - (inRow - 1) / 2) * CW, y = ((rows - 1) / 2 - r) * CH;
+      const layer = L.rectangle([[h.lat + (y - WH / 2) / Proto.M_LAT, h.lon + (x - WW / 2) / kx], [h.lat + (y + WH / 2) / Proto.M_LAT, h.lon + (x + WW / 2) / kx]], Object.assign({ interactive: false }, OFF)).addTo(map);
+      wins.push({ key: Proto.dateKey(p.shot), shot: p.shot, layer, on: false });
+    });
+  });
+  wins.sort((a, b) => a.key - b.key);
+  // шкала времени: позиция 0 — до первого расстрела, дальше по одной дате из данных (не по календарю)
+  const dates = [...new Set(wins.map(w => w.key))], label = {};
+  wins.forEach(w => label[w.key] = w.shot);
+  const MON = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  const human = s => { const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s); return m ? +m[1] + ' ' + MON[+m[2] - 1] + ' ' + m[3] : s; };
+  const rng = document.getElementById('rng'), now = document.getElementById('now'), pb = document.getElementById('pb');
+  rng.max = dates.length;
+  function show(pos) {
+    const lim = pos === 0 ? -1 : dates[pos - 1];
+    let dark = 0;
+    wins.forEach(w => { const on = w.key > lim; if (!on) dark++; if (on !== w.on) { w.on = on; w.layer.setStyle(on ? ON : OFF); } });
+    now.innerHTML = (pos === 0 ? 'До ' + human(label[dates[0]]) : human(label[lim])) + ' <span>· погасло ' + Proto.fmt(dark) + ' из ' + Proto.fmt(wins.length) + '</span>';
+    rng.value = pos;
+  }
+  let timer = null;
+  const stop = () => { clearInterval(timer); timer = null; pb.textContent = '▶'; };
+  const play = () => {
+    if (+rng.value >= dates.length) show(0);
+    pb.textContent = '❚❚';
+    timer = setInterval(() => { const p = +rng.value + 1; show(p); if (p >= dates.length) stop(); }, 60);
+  };
+  pb.addEventListener('click', () => timer ? stop() : play());
+  rng.addEventListener('input', () => { stop(); show(+rng.value); });
+  wins.forEach(w => { w.on = true; w.layer.setStyle(ON); });
+  show(0);
+  setTimeout(play, 1200);
+
+  const draw = () => { lab.begin(); if (map.getZoom() >= 16) lab.streets(lines, '10px Helvetica, Arial, sans-serif', 'st', 12); };
+  Proto.selection({
+    data, map,
+    onSelect(h, prev) {
+      if (prev && prev.b >= 0) B[prev.b].setStyle(idle(prev.b));
+      if (h && h.b >= 0) B[h.b].setStyle({ color: '#ece7dc', weight: 1.2 });
+    },
+    render: h => Proto.card(h, data),
+  });
+  map.on('moveend zoomend', draw);
+  draw();
+  Proto.header(data);
+}).catch(Proto.fail);
+</script>
+</body></html>
