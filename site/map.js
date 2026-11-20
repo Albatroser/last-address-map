@@ -236,44 +236,76 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   });
   const fmt = n => n.toLocaleString('ru');
 
-  // ---------- поиск по адресу: только среди домов, которые есть на карте ----------
+  // ---------- поиск по адресу: улицы и дома, но только те, что есть на карте ----------
   const q = document.getElementById('q'), hits = document.getElementById('hits');
   const SKIP = new Set(['улица', 'ул', 'переулок', 'пер', 'дом', 'д', 'проспект', 'просп', 'пр', 'бульвар', 'бул', 'площадь', 'пл', 'набережная', 'наб', 'шоссе', 'ш', 'проезд', 'корп', 'корпус', 'стр', 'строение', 'москва']);
+  // улица — часть адреса до «, д.»; у неё список домов и общее число людей
+  const streets = new Map();
+  houses.forEach(h => {
+    const name = h.addr.split(/,\s*д\./)[0].trim();
+    if (!streets.has(name)) streets.set(name, { street: name, key: ' ' + norm(name) + ' ', list: [], n: 0 });
+    const st = streets.get(name); st.list.push(h); st.n += h.m.n;
+  });
+  const score = (key, words) => {
+    let sc = 0;
+    for (const w of words) {
+      if (/^\d/.test(w)) { // номер: целое слово лучше, чем начало слова
+        if (key.includes(' ' + w + ' ')) sc += 3; else if (key.includes(' ' + w)) sc += 1; else return 0;
+      } else if (key.includes(' ' + w)) sc += 4; else if (key.includes(w)) sc += 1; else return 0; // начало слова в названии важнее всего
+    }
+    return sc;
+  };
+  const rank = (items, words, name) => items.map(x => [score(x.key, words), x]).filter(x => x[0])
+    .sort((a, b) => b[0] - a[0] || name(a[1]).length - name(b[1]).length || name(a[1]).localeCompare(name(b[1]), 'ru')).map(x => x[1]);
   function find(text) {
     const words = norm(text).split(' ').filter(w => w && !SKIP.has(w));
     if (!words.length) return [];
-    const out = [];
-    houses.forEach(h => {
-      let score = 0;
-      for (const w of words) {
-        if (/^\d/.test(w)) { // номер дома: целое слово лучше, чем начало слова
-          if (h.key.includes(' ' + w + ' ')) score += 3; else if (h.key.includes(' ' + w)) score += 1; else return;
-        } else if (h.key.includes(' ' + w)) score += 4; else if (h.key.includes(w)) score += 1; else return; // начало слова в названии улицы важнее всего
-      }
-      out.push([score, h]);
-    });
-    return out.sort((a, b) => b[0] - a[0] || a[1].addr.length - b[1].addr.length || a[1].addr.localeCompare(b[1].addr, 'ru')).slice(0, 8).map(x => x[1]);
+    const hs = rank(houses, words, h => h.addr);
+    // пока в запросе нет номера дома, сначала идут улицы целиком
+    const sts = words.some(w => /^\d/.test(w)) ? [] : rank([...streets.values()], words, t => t.street).slice(0, 4);
+    return sts.concat(hs).slice(0, 8);
   }
-  function go(h) {
-    hits.textContent = ''; q.value = h.addr; q.blur();
-    map.setView(h.m.getLatLng(), Math.max(map.getZoom(), 17), { animate: false });
-    h.m.openPopup();
+  function go(x) {
+    hits.textContent = ''; found = []; q.blur();
+    if (x.street) { // улица: показать все её дома на карте
+      q.value = x.street;
+      map.closePopup();
+      map.fitBounds(L.latLngBounds(x.list.map(h => h.m.getLatLng())), { paddingTopLeft: [40, 80], paddingBottomRight: [40, 60], maxZoom: 17, animate: false });
+    } else {
+      q.value = x.addr;
+      map.setView(x.m.getLatLng(), Math.max(map.getZoom(), 17), { animate: false });
+      x.m.openPopup();
+    }
   }
-  let found = [];
+  let found = [], active = 0;
+  const mark = () => [...hits.children].forEach((b, k) => b.classList.toggle('on', k === active));
   q.oninput = () => {
-    found = find(q.value);
+    found = find(q.value); active = 0;
     hits.textContent = '';
     if (!q.value.trim()) return;
-    if (!found.length) { hits.innerHTML = '<div class="none">Такого адреса нет среди домов на карте</div>'; return; }
-    found.forEach(h => {
+    if (!found.length) { hits.innerHTML = '<div class="none">Такой улицы или адреса нет среди домов на карте</div>'; return; }
+    found.forEach((x, k) => {
       const b = document.createElement('button');
-      b.innerHTML = esc(h.addr) + ' <span>' + h.m.n + ' чел.</span>';
-      b.onclick = () => go(h);
+      b.innerHTML = x.street
+        ? esc(x.street) + ' <span>вся улица · ' + x.list.length + ' ' + plural(x.list.length, 'дом', 'дома', 'домов') + ' · ' + x.n + ' чел.</span>'
+        : esc(x.addr) + ' <span>' + x.m.n + ' чел.</span>';
+      b.onclick = () => go(x);
+      b.onmouseenter = () => { active = k; mark(); };
       hits.appendChild(b);
     });
+    mark();
   };
-  q.onkeydown = e => { if (e.key === 'Enter' && found.length) go(found[0]); if (e.key === 'Escape') { hits.textContent = ''; q.blur(); } };
-  map.on('click', () => { hits.textContent = ''; });
+  q.onkeydown = e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!found.length) return;
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : found.length - 1)) % found.length;
+      mark();
+    } else if (e.key === 'Enter' && found.length) go(found[active]);
+    else if (e.key === 'Escape') { hits.textContent = ''; found = []; q.blur(); }
+  };
+  q.onfocus = () => { if (q.value.trim() && !hits.children.length) q.oninput(); };
+  map.on('click', () => { hits.textContent = ''; found = []; });
   search.hidden = false;
 
   // ---------- общий таймлайн: ползунок по годам; выбранный год выделяется на карте, остальные дома бледнеют ----------

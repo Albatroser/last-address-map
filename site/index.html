@@ -13,7 +13,7 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 #hits{margin-top:4px;background:rgba(15,15,15,.95);border-radius:6px;overflow:hidden}
 #hits button{display:flex;justify-content:space-between;gap:12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid #2a2a2a;color:#ddd;font:inherit;padding:8px 12px;cursor:pointer}
 #hits button:first-child{border-top:0}
-#hits button:hover{background:#262626}
+#hits button.on{background:#2c2c2c;color:#fff}
 #hits span{color:#888;white-space:nowrap}
 #hits .none{padding:8px 12px;color:#999}
 #msg{position:absolute;z-index:660;top:60px;left:56px;right:12px;max-width:340px;background:#3a1512;color:#fff;font:13px/1.4 system-ui,sans-serif;padding:8px 12px;border-radius:6px}
@@ -54,7 +54,7 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 #time-head button{margin-left:8px;background:none;border:1px solid #666;border-radius:4px;color:#ddd;font:inherit;padding:1px 8px;cursor:pointer}
 </style></head><body>
 <div id="map"></div>
-<div id="search" hidden><input id="q" type="search" placeholder="Адрес: улица, дом" autocomplete="off" aria-label="Поиск по адресу"><div id="hits"></div></div>
+<div id="search" hidden><input id="q" type="search" placeholder="Улица или адрес" autocomplete="off" aria-label="Поиск по адресу"><div id="hits"></div></div>
 <div id="msg" hidden></div>
 <div id="time"><div id="time-panel" hidden><div id="time-head"></div><div id="time-track"><div id="time-strip"></div><input id="time-range" type="range" step="1" aria-label="Год"></div><div id="time-ticks"></div></div><button id="time-btn" hidden>Таймлайн</button></div>
 <script src="vendor/leaflet/leaflet.js"></script>
