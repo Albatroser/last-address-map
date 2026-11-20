@@ -146,6 +146,23 @@ Promise.all([fetch('data/base/index.json').then(r => r.json()), fetch('data/base
   document.getElementById('tl').textContent = 'Подложка не загрузилась: ' + e.message;
 });
 
+// ---------- плашка: на узком экране свёрнута до заголовка и счётчика, чтобы не закрывать карту и окно дома ----------
+const info = document.getElementById('info'), infoBtn = document.getElementById('info-btn');
+const narrow = () => window.matchMedia('(max-width: 600px)').matches;
+function foldInfo(min) { info.classList.toggle('min', min); infoBtn.textContent = min ? 'Подробнее' : 'Свернуть'; }
+infoBtn.onclick = () => foldInfo(!info.classList.contains('min'));
+foldInfo(true);
+map.on('popupopen', e => {
+  if (narrow()) foldInfo(true);
+  // высота плашки меняется (счётчик бывает в одну или две строки), поэтому после штатного сдвига карты
+  // проверяем, не осталось ли окно под плашкой, и досдвигаем
+  setTimeout(() => {
+    const el = e.popup.getElement(); if (!el) return;
+    const ib = info.getBoundingClientRect(), pb = el.getBoundingClientRect();
+    if (pb.top < ib.bottom + 8 && pb.left < ib.right && pb.right > ib.left) map.panBy([0, pb.top - ib.bottom - 8]);
+  }, 350);
+});
+
 // ---------- точки и попап ----------
 // Вблизи (масштаб 16 и крупнее) круг такой же, как в исходном дизайне: радиус 3 + √n · 2,2 px.
 // Издалека круги сжимаются вдвое на каждые два шага масштаба и теряют обводку,
@@ -209,14 +226,15 @@ function popupHtml(addr, people) {
 }
 fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   let people = 0;
-  const padTop = document.getElementById('info').offsetHeight + 24; // окно дома не должно уходить под плашку
+  // окно дома не должно уходить под плашку; на узком экране оно ещё и уже
+  const popupOpts = { maxWidth: Math.min(360, window.innerWidth - 50), autoPanPaddingTopLeft: [10, info.offsetHeight + 24] };
   const cnt = document.getElementById('cnt');
   D.forEach(([lat, lon, addr, ppl]) => {
     people += ppl.length;
     const m = L.circleMarker([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
     m.n = ppl.length; m.byYear = {}; dots.push(m);
     ppl.forEach(q => { const y = yearOf(q[3]); if (y) m.byYear[y] = (m.byYear[y] || 0) + 1; });
-    m.bindPopup(() => popupHtml(addr, ppl), { maxWidth: 360, autoPanPaddingTopLeft: [10, padTop] });
+    m.bindPopup(() => popupHtml(addr, ppl), popupOpts);
     m.addTo(map);
   });
   const fmt = n => n.toLocaleString('ru');
@@ -236,17 +254,15 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
     slider.classList.toggle('idle', !y);
     [...strip.children].forEach(c => c.classList.toggle('on', +c.dataset.y === y));
     const n = byYear[y] || 0;
-    head.innerHTML = !y ? '<b>' + y0 + '–' + y1 + '</b> — все годы. Чем ярче год на линии, тем больше расстрелянных. Двигайте ползунок, чтобы выделить год на карте.'
+    head.innerHTML = !y ? '<b>' + y0 + '–' + y1 + '</b> — все годы. Двигайте ползунок, чтобы выделить год на карте.'
       : '<b>' + y + '</b> — ' + (n ? ppl(n) + ', ' + hs(housesIn[y]) : 'в базе нет расстрелянных с известным адресом') + ' <button id="time-all">Все годы</button>';
     cnt.textContent = y ? 'Выделен ' + y + ' год: ' + (n ? hs(housesIn[y]) + ', ' + ppl(n) : 'никого') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
     const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(0);
   }
-  // линия под ползунком: по клетке на год, яркость — число расстрелянных; цвет нейтральный, чтобы не путать с красными точками (сжато логарифмом, иначе видны только 1937–1938)
-  const top = Math.max(...Object.values(byYear));
+  // линия под ползунком: по одинаковой клетке на год, без цвета по числу расстрелянных (так решил Илья)
   for (let y = y0; y <= y1; y++) {
-    const c = document.createElement('i'), n = byYear[y] || 0;
-    c.dataset.y = y; c.title = y + ': ' + fmt(n);
-    if (n) c.style.background = 'rgba(236,232,222,' + (0.10 + 0.90 * Math.log(1 + n) / Math.log(1 + top)).toFixed(2) + ')';
+    const c = document.createElement('i');
+    c.dataset.y = y; c.title = y;
     strip.appendChild(c);
   }
   slider.min = y0; slider.max = y1; slider.value = y0;

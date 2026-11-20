@@ -9,6 +9,8 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 #info{position:absolute;z-index:650;top:12px;left:56px;background:rgba(15,15,15,.85);color:#ddd;font:13px/1.4 system-ui,sans-serif;padding:10px 14px;border-radius:6px;max-width:340px}
 #info b{color:#fff;font-size:15px}
 #info .m{color:#999}
+#info-btn{display:none;margin-top:6px;background:none;border:1px solid #555;border-radius:4px;color:#bbb;font:12px/1 system-ui,sans-serif;padding:5px 9px;cursor:pointer}
+@media (max-width:600px){#info{right:12px;max-width:none}#info-btn{display:inline-block}#info.min #more{display:none}}
 .leaflet-popup-content-wrapper{background:#1b1b1b;color:#ddd;border-radius:6px}
 .leaflet-popup-tip{background:#1b1b1b}
 .leaflet-popup-content{font:12.5px/1.45 system-ui,sans-serif;max-height:340px;overflow:auto;margin:12px 14px;width:320px!important}
@@ -30,7 +32,7 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 #time-head b{color:#fff}
 #time-track{position:relative;height:24px;margin-top:12px;--n:32}
 #time-strip{position:absolute;top:5px;height:14px;display:flex;gap:1px;left:calc(9px - (100% - 18px) / (2 * var(--n)));right:calc(9px - (100% - 18px) / (2 * var(--n)))}
-#time-strip i{flex:1;background:#232323}
+#time-strip i{flex:1;background:#3a3c41}
 
 #time-range{position:absolute;inset:0;width:100%;height:24px;margin:0;background:none;cursor:pointer;-webkit-appearance:none;appearance:none}
 #time-range::-webkit-slider-runnable-track{background:none;height:24px}
@@ -44,8 +46,9 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 #time-head button{margin-left:8px;background:none;border:1px solid #666;border-radius:4px;color:#ddd;font:inherit;padding:1px 8px;cursor:pointer}
 </style></head><body>
 <div id="map"></div>
-<div id="info"><b>Расстрелы в Москве, 1921–1953</b><br><span id="cnt">Загрузка…</span><br><span id="tl" class="m"></span><br>
-<span class="m">Точка — дом, размер — число расстрелянных жильцов. Клик — список людей. Источник: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский.</span></div>
+<div id="info"><b>Расстрелы в Москве, 1921–1953</b><br><span id="cnt">Загрузка…</span>
+<div id="more"><span id="tl" class="m"></span><br>
+<span class="m">Точка — дом, размер — число расстрелянных жильцов. Клик — список людей. Источник: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский.</span></div><button id="info-btn">Подробнее</button></div>
 <div id="time"><div id="time-panel" hidden><div id="time-head"></div><div id="time-track"><div id="time-strip"></div><input id="time-range" type="range" step="1" aria-label="Год"></div><div id="time-ticks"></div></div><button id="time-btn" hidden>Таймлайн</button></div>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="map.js"></script>
