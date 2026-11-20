@@ -369,7 +369,7 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
   function pick(y) { // y = 0 — все годы
     pickedYear = y;
     redrawDots();
-    map.closePopup();
+    if (map._popup && map._popup.isOpen()) map._popup.update(); // открытое окно дома остаётся, список в нём пересобирается под новый год
     slider.classList.toggle('idle', !y);
     [...strip.children].forEach(c => c.classList.toggle('on', +c.dataset.y === y));
     const n = byYear[y] || 0;
