@@ -173,9 +173,19 @@ let pickedHouse = null; // дом, окно которого сейчас отк
 let pickedStreet = null; // набор домов улицы, выбранной в поиске, или null
 const shown = m => pickedYear ? (m.byYear[pickedYear] || 0) : m.n;
 const RED = '#ff3b2f', GREY = '#8d8f94';
+// Вступление (story.js): пока оно идёт, story = { lit: набор домов, которые горят, big: крупные ли точки,
+// match: набор людей, подошедших под ответы посетителя (в окне дома выделены только они), или null };
+// остальные дома не видны. После вступления story = null и карта работает как обычно.
+let story = null;
+const storyStyle = m => {
+  if (!story.lit.has(m)) return { opacity: 0, fillOpacity: 0 };
+  const st = dotStyle(m.n);
+  return Object.assign({ color: RED, fillColor: RED, opacity: 1 }, st, story.big ? { radius: Math.max(story.lit.size <= 60 ? 5 : 3, st.radius), weight: 1, fillOpacity: 0.55 } : {});
+};
 // Открыт дом — красным остаётся только он. Выбрана улица в поиске — красными остаются только её дома. Выбран год: дома, где в этот год кого-то расстреляли, — такие же полупрозрачные красные круги, как на всех годах, поверх остальных
 // (размер — по числу за этот год); все прочие дома остаются на месте, но серые (размер — по общему числу).
 function redrawDots() {
+  if (story) { dots.forEach(m => { m.options.interactive = story.lit.has(m); m.setStyle(storyStyle(m)); }); return; } // погашенные дома не нажимаются
   // открытый дом: красным остаётся только он; если он стоит на выбранной улице — вся улица
   const house = pickedHouse && !(pickedStreet && pickedStreet.has(pickedHouse)) ? pickedHouse : null;
   const filtered = pickedYear || pickedStreet || house, bright = [];
@@ -212,19 +222,23 @@ function popupHtml(addr, people) {
   if (apts) sum += ' · ' + apts + ' ' + plural(apts, 'квартира', 'квартиры', 'квартир');
   if (years.length) sum += ' · ' + (y0 === y1 ? y0 : y0 + '–' + y1);
   // если на таймлайне выбран год: сначала расстрелянные в этот год, остальные ниже и серым
-  const inYear = pickedYear ? ppl.filter(p => yearOf(p[3]) === pickedYear) : ppl;
-  const rows = pickedYear ? inYear.concat(ppl.filter(p => yearOf(p[3]) !== pickedYear)) : ppl;
+  // во вступлении (story.match — люди, подошедшие под ответы посетителя) выделены только они, остальные жильцы серые
+  const inStory = story && story.match;
+  const picked = inStory ? p => story.match.has(p) : pickedYear ? p => yearOf(p[3]) === pickedYear : null;
+  const inYear = picked ? ppl.filter(picked) : ppl;
+  const rows = picked ? inYear.concat(ppl.filter(p => !picked(p))) : ppl;
   let sepDone = false;
-  if (pickedYear) sum = 'в ' + pickedYear + ' году — ' + inYear.length + ' из ' + ppl.length + ' · ' + sum;
+  if (pickedYear && !inStory) sum = 'в ' + pickedYear + ' году — ' + inYear.length + ' из ' + ppl.length + ' · ' + sum;
   return '<div class="pp"><h3>' + esc(addr) + '</h3><div class="sum">' + sum + '</div>' +
-    rows.map(([apt, name, by, ex, bur, bio, born, nat, party, job]) => {
-      const dim = pickedYear && yearOf(ex) !== pickedYear;
+    rows.map(p => {
+      const [apt, name, by, ex, bur, bio, born, nat, party, job] = p;
+      const dim = picked && !picked(p);
       const rest = [
         apt ? 'кв. ' + esc(apt) + (inApt[apt] > 1 ? ' (в этой квартире расстреляно ' + inApt[apt] + ')' : '') : '',
         bur ? 'захоронение: ' + esc(bur) : '',
         born ? 'род.: ' + esc(born) : '', esc(nat || ''), esc(party || ''),
       ].filter(Boolean).join(' · ');
-      const sep = dim && !sepDone ? (sepDone = true, '<div class="other">Расстреляны в другие годы</div>') : '';
+      const sep = dim && !sepDone ? (sepDone = true, '<div class="other">' + (inStory ? 'Другие расстрелянные по этому адресу' : 'Расстреляны в другие годы') + '</div>') : '';
       return sep + '<div class="p' + (dim ? ' dim' : '') + '"><div><span class="n">' + esc(name) + '</span> <span class="life">' + (by ? by + ' – ' : 'расстрел ') + esc(ex) + '</span></div>' +
         '<div class="job">' + esc(nat ? job : bio) + '</div><div class="m">' + rest + '</div></div>';
     }).join('') + '</div>';
@@ -240,7 +254,7 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     if (ppl.length < MIN) return;
     people += ppl.length;
     const m = L.circleMarker([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
-    m.n = ppl.length; m.byYear = {}; dots.push(m);
+    m.n = ppl.length; m.byYear = {}; m.addr = addr; m.ppl = ppl; dots.push(m);
     if (NOTES[addr]) { m.note = NOTES[addr]; m.party = ppl.filter(q => (q[8] || '').startsWith('член ВКП')).length; }
     ppl.forEach(q => { partyAll[1]++; if ((q[8] || '').startsWith('член ВКП')) partyAll[0]++; });
     ppl.forEach(q => { const y = yearOf(q[3]); if (y) m.byYear[y] = (m.byYear[y] || 0) + 1; });
@@ -421,6 +435,8 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     if (panel.hidden && pickedYear) pick(0); // закрытый таймлайн не должен незаметно менять карту
   };
   pick(0);
+  window.storyData = true; // данные готовы — можно начинать вступление (story.js)
+  if (window.startStory) window.startStory();
 }).catch(e => {
   say('Данные не загрузились: ' + e.message + '. Страницу нужно открывать через веб-сервер, а не как файл.');
 });
