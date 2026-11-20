@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Вариант А — имена · прототип оформления</title>
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="common.css">
+<style>
+/* Вариант А. Бумага и набор: на карте нет значков, только имена. */
+:root{--bg:#f1ece0;--ink:#211e19;--soft:#7d7566;--serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Times New Roman",serif}
+body{font-family:var(--serif);color:var(--ink)}
+#top .t{font-size:21px;font-weight:400;letter-spacing:.01em}
+#top .c,#top .l{color:var(--soft);opacity:1}
+#top .l{font-style:italic}
+.lb.st{font:italic 11px/13px var(--serif);color:#a69c88;letter-spacing:.06em}
+.lb.nm{font:12px/14px var(--serif);color:var(--ink);text-shadow:0 0 2px var(--bg),0 0 2px var(--bg),0 0 3px var(--bg)}
+.lb.nm i{color:var(--soft)}
+.lb.nm.sel{font-weight:700}
+.lb.num{font-family:var(--serif);color:var(--ink);font-variant-numeric:lining-nums;text-shadow:0 0 2px var(--bg),0 0 2px var(--bg)}
+.lb.dot{width:4px;height:4px;background:var(--ink)}
+.lb.dot.sel{outline:1px solid var(--ink);outline-offset:3px}
+#sheet{background:#fbf8f0;border-top:1px solid var(--ink);box-shadow:0 -8px 30px rgba(60,50,30,.12)}
+#card h2{font-size:24px;line-height:1.15;font-weight:400;margin:0 0 4px}
+#card .sub{font-size:14px;color:var(--soft);margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid #d9d1bf}
+#card ol{list-style:none;margin:0;padding:0}
+#card li{padding:11px 0 12px;border-bottom:1px solid #e6dfcf}
+#card .n{font-size:18px;line-height:1.25}
+#card .f{font-size:13.5px;line-height:1.45;color:#4b453a;margin-top:3px;font-variant-numeric:lining-nums}
+#card .bio{font-size:13.5px;line-height:1.45;font-style:italic;color:var(--soft);margin-top:3px}
+#src{color:var(--soft)}
+.leaflet-bar{border:1px solid #cfc6b2!important;box-shadow:none!important}
+.leaflet-bar a{background:#fbf8f0;color:var(--ink);border-color:#d9d1bf}
+@media (min-width:760px){#sheet{border-top:0;border-left:1px solid var(--ink)}}
+</style></head><body>
+<div id="map"></div>
+<header id="top">
+  <h1 class="t">Арбат и окрестности</h1>
+  <div class="c" id="cnt">Загрузка…</div>
+  <div class="l">Цифра — сколько расстрелянных жило по адресу. Приблизьте карту — вместо цифр появятся имена.</div>
+  <nav><a class="on" href="a.html">А</a><a href="b.html">Б</a><a href="c.html">В</a></nav>
+</header>
+<aside id="sheet" aria-hidden="true"><button id="x" aria-label="Закрыть">×</button><div id="card"></div></aside>
+<div id="src">Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский. Дома и улицы: © участники OpenStreetMap, современные контуры и названия.</div>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="common.js"></script>
+<script>
+Proto.load().then(data => {
+  const { esc } = Proto, map = Proto.makeMap(data.base, 17);
+  const used = new Set(data.houses.map(h => h.b));
+  const idle = i => ({ color: '#d3cab6', fillColor: used.has(i) ? '#d9d0bb' : '#e7e0d0', weight: 0.6 });
+  const B = Proto.drawBase(map, data.base, { green: { fillColor: '#e6e6d2' }, street: { a: '#fbf8f0', b: '#fbf8f0', p: '#fbf8f0' }, building: idle });
+  const lines = Proto.streetLines(data.base), lab = Proto.Labeler(map);
+  const serif = getComputedStyle(document.body).fontFamily, F = '12px ' + serif;
+  const order = data.houses.slice().sort((a, b) => b.people.length - a.people.length);
+  order.forEach(h => { h.names = h.people.map(p => p.name).sort((a, b) => a.localeCompare(b, 'ru')); });
+  let sel;
+
+  function draw() {
+    const z = map.getZoom(), view = map.getBounds().pad(0.35), cur = sel && sel.get();
+    lab.begin();
+    const vis = order.filter(h => view.contains([h.lat, h.lon]));
+    if (cur && vis.includes(cur)) { vis.splice(vis.indexOf(cur), 1); vis.unshift(cur); }
+    // точки адресов ставятся всегда и первыми: имена не должны закрывать чужой адрес
+    const pts = vis.map(h => { const p = map.latLngToLayerPoint([h.lat, h.lon]); lab.add(p.x - 2, p.y - 2, 4, 4, '', 'dot' + (h === cur ? ' sel' : ''), { force: true, pad: 1 }); return p; });
+    if (z >= 16) lab.streets(lines, 'italic 11px ' + serif, 'st', 13);
+    vis.forEach((h, i) => {
+      const p = pts[i], n = h.people.length, s = h === cur ? ' sel' : '';
+      if (z >= 17) {
+        const max = z >= 19 ? 14 : z >= 18 ? 7 : 3;
+        for (const k of [...new Set([Math.min(n, max), Math.min(n, 3), 1])]) {
+          const rows = h.names.slice(0, k).map(esc);
+          if (n > k) rows.push('<i>и ещё ' + (n - k) + '</i>');
+          const w = Math.max(...h.names.slice(0, k).map(t => lab.width(t, (s ? 'bold ' : '') + F)), n > k ? lab.width('и ещё ' + (n - k), F) : 0);
+          if (lab.add(p.x + 7, p.y - 8, w + 2, rows.length * 14, rows.join('<br>'), 'nm' + s, { force: !!s && k === 1 })) return;
+        }
+      }
+      const fs = Math.round(11 + Math.sqrt(n) * 1.6), w = lab.width(String(n), fs + 'px ' + serif);
+      // цифра, если имена не поместились или масштаб мелкий
+      lab.add(p.x + 5, p.y - fs / 2 - 1, w + 1, fs, '<span style="font-size:' + fs + 'px;line-height:' + fs + 'px;display:block' + (s ? ';font-weight:700' : '') + '">' + n + '</span>', 'num', { force: !!s });
+    });
+  }
+
+  sel = Proto.selection({
+    data, map,
+    onSelect(h, prev) {
+      if (prev && prev.b >= 0) B[prev.b].setStyle(idle(prev.b));
+      if (h && h.b >= 0) B[h.b].setStyle({ fillColor: '#b9ad92', color: '#211e19', weight: 1 });
+      draw();
+    },
+    render(h) {
+      const ppl = h.people.slice().sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+      return '<h2>' + esc(h.addr) + '</h2><p class="sub">' + Proto.people(ppl.length) + ' · по алфавиту</p><ol>' + ppl.map(p =>
+        '<li><div class="n">' + esc(p.name) + '</div><div class="f">' + [p.born ? p.born + ' г. р.' : '', p.apt ? 'кв. ' + esc(p.apt) : '', 'расстрел ' + esc(p.shot), esc(p.burial)].filter(Boolean).join(' · ') +
+        '</div><div class="bio">' + esc(p.bio) + '</div></li>').join('') + '</ol>';
+    },
+  });
+  map.on('moveend zoomend', draw);
+  draw();
+  Proto.header(data);
+}).catch(Proto.fail);
+</script>
+</body></html>

@@ -1,0 +1,26 @@
+/* Карточка дома из варианта В в тёмной теме — общая для вариантов Г, Д, Е. Цвета задаются переменными страницы. */
+body{font-family:"Helvetica Neue",Helvetica,Arial,"Segoe UI",Roboto,sans-serif;color:var(--ink)}
+#top .t{font-weight:700;font-size:17px;letter-spacing:-.01em}
+#top .c{font-weight:500}
+#top .l{color:var(--soft);opacity:1}
+#src{color:var(--soft)}
+#sheet{background:var(--card);border-top:3px solid var(--ink)}
+#card h2{font-size:22px;line-height:1.15;font-weight:700;letter-spacing:-.01em;margin:0 0 10px}
+#card .k{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:13px;line-height:1.5;margin:0 0 6px}
+#card .k dt{color:var(--soft)}#card .k dd{margin:0;font-variant-numeric:tabular-nums}
+#card .yrs{display:flex;align-items:flex-end;gap:3px;height:54px;margin:14px 0 4px;border-bottom:1px solid var(--ink)}
+#card .yrs b{flex:1;background:var(--ink);min-width:3px}
+#card .yrs b.z{background:none}
+#card .ax{display:flex;justify-content:space-between;font-size:11px;color:var(--soft);font-variant-numeric:tabular-nums}
+#card table{width:100%;border-collapse:collapse;margin-top:16px}
+#card td{vertical-align:top;padding:9px 0 10px;border-top:1px solid var(--rule);font-size:13px;line-height:1.45}
+#card td.d{width:88px;padding-right:12px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+#card .n{font-size:15px;font-weight:700;line-height:1.3}
+#card .f{color:var(--mid);font-variant-numeric:tabular-nums}
+#card .bio,#card .note{color:var(--soft)}
+#card .note{font-size:12px;margin:10px 0 0}
+.leaflet-bar{border:1px solid var(--rule)!important;border-radius:0!important;box-shadow:none!important}
+.leaflet-bar a{background:var(--card);color:var(--ink);border-radius:0!important;border-color:var(--rule)}
+.leaflet-bar a:hover{background:var(--card);color:var(--ink)}
+.lb.st{font:10px/12px Helvetica,Arial,sans-serif;color:var(--street);letter-spacing:.08em;text-transform:uppercase}
+@media (min-width:760px){#sheet{border-top:0;border-left:3px solid var(--ink)}}

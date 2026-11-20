@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Вариант Д — город из имён · прототип оформления</title>
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="card.css">
+<style>
+/* Вариант Д. Домов нет. Карта набрана из имён: каждое стоит на своём адресе и растёт вместе с масштабом. */
+:root{--bg:#000;--ink:#f1eee6;--soft:#85827b;--mid:#c9c5bb;--card:#0e0e0e;--rule:#2b2b2b;--street:#3d3d3d;--acc:#ff5a2b}
+#names{position:absolute;left:0;top:0;transform-origin:0 0}
+#names .h{position:absolute;transform:translate(-50%,-50%);text-align:center;white-space:nowrap;font:700 10px/11px "Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink);letter-spacing:.01em}
+#names .h.sel{color:var(--acc)}
+</style></head><body>
+<div id="map"></div>
+<header id="top">
+  <h1 class="t">Арбат и окрестности</h1>
+  <div class="c" id="cnt">Загрузка…</div>
+  <div class="l">Здесь нет домов — только имена расстрелянных, каждое на своём адресе. Приблизьте, чтобы прочитать; нажмите на имена, чтобы открыть дом.</div>
+  <nav><a href="d.html">Г</a><a class="on" href="e.html">Д</a><a href="f.html">Е</a></nav>
+</header>
+<aside id="sheet" aria-hidden="true"><button id="x" aria-label="Закрыть">×</button><div id="card"></div></aside>
+<div id="src">Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский. Улицы: © участники OpenStreetMap, современные названия.</div>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="common.js"></script>
+<script>
+Proto.load().then(data => {
+  const { esc } = Proto, map = Proto.makeMap(data.base, 17.5);
+  Proto.drawBase(map, data.base, { green: { fillColor: '#000' }, street: { a: '#0f0f0f', b: '#0f0f0f', p: '#0f0f0f' }, building: null });
+  const lines = Proto.streetLines(data.base), lab = Proto.Labeler(map);
+
+  // имена набраны один раз в масштабе Z0 и масштабируются вместе с картой: строка занимает около 3,7 м
+  const Z0 = 18, [S, W, N] = data.base.bbox, o0 = map.project([N, W], Z0);
+  const pane = map.createPane('names'); pane.style.zIndex = 440; pane.style.pointerEvents = 'none';
+  const box = document.createElement('div'); box.id = 'names'; pane.appendChild(box);
+  data.houses.forEach(h => {
+    const p = map.project([h.lat, h.lon], Z0), d = document.createElement('div');
+    d.className = 'h'; d.style.left = (p.x - o0.x) + 'px'; d.style.top = (p.y - o0.y) + 'px';
+    d.innerHTML = h.people.map(q => q.name).sort((a, b) => a.localeCompare(b, 'ru')).map(esc).join('<br>');
+    box.appendChild(d); h.el = d;
+  });
+  function place() {
+    const o = map.latLngToLayerPoint([N, W]);
+    box.style.transform = 'translate(' + o.x + 'px,' + o.y + 'px) scale(' + map.getZoomScale(map.getZoom(), Z0) + ')';
+    lab.begin();
+    if (map.getZoom() >= 16) lab.streets(lines, '10px Helvetica, Arial, sans-serif', 'st', 12);
+  }
+  map.on('zoomstart', () => { pane.style.visibility = 'hidden'; });
+  map.on('zoomend', () => { pane.style.visibility = ''; });
+  Proto.selection({
+    data, map,
+    onSelect(h, prev) { if (prev) prev.el.classList.remove('sel'); if (h) h.el.classList.add('sel'); },
+    render: h => Proto.card(h, data),
+  });
+  map.on('moveend zoomend', place);
+  place();
+  Proto.header(data);
+}).catch(Proto.fail);
+</script>
+</body></html>
