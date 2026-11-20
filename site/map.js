@@ -201,6 +201,106 @@ function redrawDots() {
   bright.forEach(m => m.bringToFront());
   markYears();
 }
+// ---------- плавный перелёт камеры ----------
+// Сам по себе Leaflet во время полёта не перерисовывает холст, а сжимает или растягивает готовую картинку,
+// поэтому камерой управляет этот код, и на каждом кадре всё рисуется заново:
+// - точки — штатным холстом Leaflet;
+// - подложка так не успевает, поэтому её холст на время полёта гаснет, а крупные улицы заранее рисуются
+//   в несколько картинок, по одной на каждый шаг масштаба, и в полёте только масштабируются.
+// Дома, мелкие улицы и подписи на время полёта пропадают и возвращаются после остановки.
+// Камера приближается или отдаляется вокруг одной неподвижной точки экрана. Если лететь надо далеко
+// и вблизи (с улицы на улицу в другом районе), полёт идёт в два приёма: отъезд на общий вид и приближение.
+// Сейчас им пользуется вступление (story.js): во время него дома рисуются так, как велит storyStyle.
+let flight = 0, flightCanvas = null, roadPath = null;
+function flyCamera(center, zoom, opts) {
+  opts = opts || {};
+  const my = ++flight, to = L.latLng(center), z0 = map.getZoom(), z1 = zoom, size = map.getSize(), half = size.divideBy(2);
+  const end = () => { if (opts.done) opts.done(); };
+  const c0 = map.project(map.getCenter(), z0), c1 = map.project(to, z1), zlo = Math.min(z0, z1), zhi = Math.max(z0, z1);
+  const dist = map.project(map.getCenter(), zlo).distanceTo(map.project(to, zlo)); // расстояние в пикселях на меньшем из двух масштабов
+  if (zhi - zlo < 0.01 && dist < 2) return end();
+  if (!dots.length || !base.roadLines.length) { map.setView(to, z1, { animate: false }); return end(); }
+  if (zlo >= 14 && dist > 1.5 * Math.max(size.x, size.y)) { // далеко и вблизи: сначала отъезд на общий вид
+    const both = L.latLngBounds([map.getCenter(), to]);
+    return flyCamera(both.getCenter(), Math.min(13, map.getBoundsZoom(both.pad(0.3))), { done: () => { if (my + 1 === flight) flyCamera(to, z1, opts); } });
+  }
+  const zooming = zhi - zlo >= 0.01;
+  let at; // e (0…1) → [масштаб, центр экрана в пикселях мира на этом масштабе]
+  if (zooming) {
+    const s = Math.pow(2, z1 - z0), anchor = c0.multiplyBy(s).subtract(c1).divideBy(1 - s), A0 = c0.add(anchor);
+    at = e => { const Z = z0 + (z1 - z0) * e; return [Z, A0.multiplyBy(Math.pow(2, Z - z0)).subtract(anchor)]; };
+  } else at = e => [z0, c0.add(c1.subtract(c0).multiplyBy(e))];
+
+  // улицы одной линией, в пикселях масштаба 12 относительно центра города (считается один раз)
+  const C12 = map.project([55.7539, 37.6208], 12);
+  if (!roadPath) {
+    roadPath = new Path2D();
+    base.roadLines.forEach(r => {
+      let lx = 0, ly = 0;
+      r.pts.forEach((p, i) => {
+        const q = map.project(p, 12), x = q.x - C12.x, y = q.y - C12.y;
+        if (!i) roadPath.moveTo(x, y);
+        else if (i < r.pts.length - 1 && Math.abs(x - lx) + Math.abs(y - ly) < 0.4) return; // точки ближе 0,4 px пропускаются
+        else roadPath.lineTo(x, y);
+        lx = x; ly = y;
+      });
+    });
+  }
+  // Картинка для шага z покрывает всё, что видно при масштабах от z до z+1, и нарисована с разрешением масштаба z+1.
+  const mppAt = z => 156543.03 * Math.cos(to.lat * Math.PI / 180) / Math.pow(2, z);
+  const eOf = Z => zooming ? (Z - z0) / (z1 - z0) : 0, levels = {}, zA = Math.floor(zlo), zB = Math.max(zA, Math.ceil(zhi) - 1);
+  for (let z = zA; z <= zB; z++) {
+    const k = Math.pow(2, z + 1 - 12);
+    const rect = e => { const [Z, c] = at(e), f = Math.pow(2, z + 1 - Z); return [c.subtract(half).multiplyBy(f), c.add(half).multiplyBy(f)]; };
+    const a = zooming ? rect(eOf(Math.max(z, zlo))) : rect(0), b = zooming ? rect(eOf(Math.min(z + 1, zhi))) : rect(1);
+    const min = L.point(Math.min(a[0].x, b[0].x), Math.min(a[0].y, b[0].y)), max = L.point(Math.max(a[1].x, b[1].x), Math.max(a[1].y, b[1].y));
+    const r = Math.min(1, 4096 / Math.max(max.x - min.x, max.y - min.y)); // не больше 4096 px по стороне
+    const c = document.createElement('canvas'), g = c.getContext('2d');
+    c.width = Math.ceil((max.x - min.x) * r); c.height = Math.ceil((max.y - min.y) * r);
+    g.setTransform(k * r, 0, 0, k * r, (C12.x * k - min.x) * r, (C12.y * k - min.y) * r);
+    g.lineWidth = 2 * Math.max(1.4, STYLE.width.a / mppAt(z)) / k; // на масштабе z улица той же ширины, что в подложке
+    g.strokeStyle = STYLE.roadFar; g.lineCap = g.lineJoin = 'round';
+    g.stroke(roadPath);
+    levels[z] = { c, min, r };
+  }
+  if (flightCanvas) flightCanvas.remove(); // прерванный полёт
+  const cv = flightCanvas = document.createElement('canvas'), ctx = cv.getContext('2d'), dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = size.x * dpr; cv.height = size.y * dpr;
+  cv.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;z-index:1;pointer-events:none';
+  map.getContainer().insertBefore(cv, map.getContainer().firstChild);
+  const dotR = map.getRenderer(dots[0]), baseCanvas = baseR._container;
+  const draw = (Z, c) => {
+    if (story) dots.forEach(m => { const st = storyStyle(m); if (st.radius) m._radius = st.radius; Object.assign(m.options, st); }); // без setStyle: холст и так рисуется целиком
+    dotR._postponeUpdatePaths = true; dotR._reset();
+    const z = Math.max(zA, Math.min(zB, Math.floor(Z))), lv = levels[z], f = Math.pow(2, Z - (z + 1)), tl = c.subtract(half);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
+    ctx.drawImage(lv.c, lv.min.x * f - tl.x, lv.min.y * f - tl.y, lv.c.width * f / lv.r, lv.c.height * f / lv.r);
+  };
+  map.closePopup();
+  draw(z0, c0);
+  baseCanvas.style.transition = 'opacity .25s'; baseCanvas.style.opacity = 0;
+  labelPane.style.visibility = 'hidden';
+  const T = Math.max(900, Math.min(3200, (zhi - zlo) * 550 + dist / Math.max(size.x, size.y) * 500));
+  let t0 = 0;
+  map._moveStart(true, false); // дальше — то же, что делает flyTo: вид меняется без перерисовки подложки
+  const step = now => {
+    if (my !== flight) return; // начался другой полёт
+    if (!t0) t0 = now;
+    const t = Math.min(1, (now - t0) / T), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // плавный разгон и остановка
+    const [Z, c] = at(e);
+    map._move(map.unproject(c, Z), Z, { flyTo: true });
+    draw(Z, c);
+    if (t < 1) return requestAnimationFrame(step);
+    map._move(to, z1)._moveEnd(true);
+    // Leaflet перерисовал подложку под новый вид: она возвращается, временный холст убирается
+    baseCanvas.style.transition = 'opacity .3s'; baseCanvas.style.opacity = 1;
+    labelPane.style.visibility = '';
+    setTimeout(() => { if (flightCanvas === cv) { cv.remove(); flightCanvas = null; baseCanvas.style.transition = ''; } }, 350);
+    redrawDots();
+    end();
+  };
+  requestAnimationFrame(() => requestAnimationFrame(step)); // кадр паузы: картинки улиц успевают нарисоваться
+}
 map.on('popupopen', e => { pickedHouse = e.popup._source && e.popup._source.byYear ? e.popup._source : null; redrawDots(); });
 map.on('popupclose', () => { pickedHouse = null; redrawDots(); });
 map.on('zoomend', redrawDots);
