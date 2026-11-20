@@ -168,6 +168,7 @@ function dotStyle(n) {
   return { radius: Math.max(1.1, (3 + Math.sqrt(n) * 2.2) * k), weight: k > 0.6 ? 1 : 0, fillOpacity: k > 0.6 ? 0.45 : 0.6 };
 }
 let pickedYear = 0; // 0 — все годы
+let markYears = () => {}; // подсветка годов на таймлайне, задаётся после загрузки данных
 let pickedStreet = null; // набор домов улицы, выбранной в поиске, или null
 const shown = m => pickedYear ? (m.byYear[pickedYear] || 0) : m.n;
 const RED = '#ff3b2f', GREY = '#8d8f94';
@@ -185,6 +186,7 @@ function redrawDots() {
     } else m.setStyle({ color: GREY, fillColor: GREY, radius: dotStyle(m.n).radius, weight: 0, fillOpacity: 0.3 }); // остальные — серые
   });
   bright.forEach(m => m.bringToFront());
+  markYears();
 }
 map.on('zoomend', redrawDots);
 
@@ -383,6 +385,16 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     c.dataset.y = y; c.title = y;
     strip.appendChild(c);
   }
+  // На линии подсвечиваются годы, когда расстреливали жильцов открытого дома; если дом не открыт, а в поиске
+  // выбрана улица — годы по всем её домам. Подсветка только «был такой год или нет», без числа.
+  markYears = () => {
+    const open = map._popup && map._popup.isOpen() && map._popup._source;
+    const src = open && open.byYear ? [open] : pickedStreet ? [...pickedStreet] : [];
+    const years = new Set();
+    src.forEach(m => Object.keys(m.byYear).forEach(y => years.add(+y)));
+    [...strip.children].forEach(c => c.classList.toggle('has', years.has(+c.dataset.y)));
+  };
+  map.on('popupopen popupclose', () => setTimeout(markYears, 0));
   slider.min = y0; slider.max = y1; slider.value = y0;
   slider.oninput = () => pick(+slider.value);
   slider.onpointerdown = () => { if (!pickedYear) pick(+slider.value); }; // первое нажатие на ползунок сразу выбирает год под ним
