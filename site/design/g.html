@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Круги — настройка · прототип оформления</title>
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="card.css">
+<style>
+/* Круги: одна страница, на которой вид кругов переключается кнопками. Выбор хранится в адресе страницы. */
+:root{--bg:#0e0f11;--ink:#ece8de;--soft:#86847e;--mid:#c6c2b8;--card:#141518;--rule:#2c2e33;--street:#4a4c51}
+:root.light{--bg:#ecebe6;--ink:#141414;--soft:#74736c;--mid:#333;--card:#fff;--rule:#d6d5cf;--street:#a3a29a}
+#ctl{margin-top:8px;display:grid;gap:5px;font-size:12px;max-width:520px}
+#ctl div{display:flex;align-items:flex-start;gap:5px}
+#ctl span{display:flex;flex-wrap:wrap;gap:5px;flex:1}
+#ctl b{font-weight:400;color:var(--soft);width:44px;flex:none;line-height:26px}
+#ctl button{border:1px solid var(--rule);background:var(--card);color:var(--ink);font:12px/1 inherit;padding:6px 8px;cursor:pointer}
+#ctl button.on{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+#ctl button.sw{width:26px;height:26px;padding:0;border-radius:50%;border:2px solid var(--bg);outline:1px solid var(--rule)}
+#ctl button.sw.on{outline:2px solid var(--ink)}
+#hide{position:absolute;top:10px;right:12px;border:1px solid var(--rule);background:var(--card);color:var(--ink);font:12px/1 inherit;padding:7px 9px;cursor:pointer}
+#top.min .l,#top.min #ctl{display:none}
+#top .t,#top .c{margin-right:70px}
+</style></head><body>
+<div id="map"></div>
+<header id="top">
+  <h1 class="t">Арбат и окрестности</h1>
+  <div class="c" id="cnt">Загрузка…</div>
+  <div class="l" id="leg"></div>
+  <div id="ctl">
+    <div><b>Вид</b><span id="k-v"></span></div>
+    <div><b>Цвет</b><span id="k-c" style="gap:7px"></span></div>
+    <div><b>Размер</b><span id="k-s"></span></div>
+    <div><b>Фон</b><span id="k-b"></span></div>
+  </div>
+  <button id="hide">Скрыть</button>
+</header>
+<aside id="sheet" aria-hidden="true"><button id="x" aria-label="Закрыть">×</button><div id="card"></div></aside>
+<div id="src">Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский. Дома и улицы: © участники OpenStreetMap, современные контуры и названия.</div>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="common.js"></script>
+<script>
+const VIEWS = {
+  fill: ['Заливка', 'Круг — дом. Чем больше расстрелянных жило по адресу, тем он крупнее.'],
+  ring: ['Кольцо', 'Кольцо — дом. Чем больше расстрелянных жило по адресу, тем оно крупнее.'],
+  ripple: ['Круги на воде', 'Одно кольцо — один расстрелянный человек. Сколько колец расходится от дома, столько людей жило по адресу.'],
+  people: ['Круг из людей', 'Одна точка — один расстрелянный человек. Точки собраны вокруг своего дома.'],
+};
+const COLORS = { red: '#ff3b2f', white: '#f1eee6', amber: '#ffc46b', black: '#111111' };
+const SIZES = { s: ['Мелко', 0.7], m: ['Средне', 1], l: ['Крупно', 1.5] };
+const BGS = { dark: 'Тёмный', light: 'Светлый' };
+const q = new URLSearchParams(location.search);
+const st = { v: VIEWS[q.get('v')] ? q.get('v') : 'fill', c: COLORS[q.get('c')] ? q.get('c') : 'red', s: SIZES[q.get('s')] ? q.get('s') : 'm', b: BGS[q.get('b')] ? q.get('b') : 'dark' };
+if (st.b === 'light') document.documentElement.classList.add('light');
+
+Proto.load().then(data => {
+  const map = Proto.makeMap(data.base, 16);
+  const light = st.b === 'light';
+  Proto.drawBase(map, data.base, light
+    ? { green: { fillColor: '#e2e4dc' }, street: { a: '#fbfbf8', b: '#fbfbf8', p: '#fbfbf8' }, building: () => ({ color: '#d2d1ca', fillColor: '#dfded8', weight: 0.6 }) }
+    : { green: { fillColor: '#0f1110' }, street: { a: '#0a0b0c', b: '#0a0b0c', p: '#0a0b0c' }, building: () => ({ color: '#202226', fillColor: '#191b1e', weight: 0.6 }) });
+  const lines = Proto.streetLines(data.base), lab = Proto.Labeler(map);
+  const group = L.layerGroup().addTo(map), ring = L.circleMarker([0, 0], { radius: 0, fill: false, weight: 1.5, interactive: false });
+  const order = data.houses.slice().sort((a, b) => b.people.length - a.people.length); // крупные снизу, мелкие сверху
+  let sel;
+
+  function draw() {
+    const col = COLORS[st.c], k = SIZES[st.s][1] * Math.pow(2, (map.getZoom() - 16) * 0.55);
+    group.clearLayers();
+    order.forEach(h => {
+      const n = h.people.length, at = [h.lat, h.lon], o = { interactive: false, color: col, fillColor: col };
+      if (st.v === 'fill') { h.r = (3 + Math.sqrt(n) * 2.2) * k; L.circleMarker(at, Object.assign(o, { radius: h.r, weight: 1, fillOpacity: 0.45 })).addTo(group); }
+      else if (st.v === 'ring') { h.r = (3 + Math.sqrt(n) * 2.2) * k; L.circleMarker(at, Object.assign(o, { radius: h.r, weight: 1.4, fill: false })).addTo(group); }
+      else if (st.v === 'ripple') {
+        for (let i = 0; i < n; i++) L.circleMarker(at, Object.assign({}, o, { radius: (2.5 + i * 2.6) * k, weight: 1, fill: false, opacity: Math.max(0.25, 1 - i * 0.045) })).addTo(group);
+        h.r = (2.5 + (n - 1) * 2.6) * k;
+      } else {
+        // точки раскладываются по спирали подсолнуха: каждая следующая чуть дальше от центра
+        const d = 2.1 * k, z = map.getZoom(), c = map.project(at, z);
+        for (let i = 0; i < n; i++) {
+          const rr = d * 1.9 * Math.sqrt(i), a = i * 2.39996;
+          L.circleMarker(map.unproject([c.x + rr * Math.cos(a), c.y + rr * Math.sin(a)], z), Object.assign({}, o, { radius: d, stroke: false, fillOpacity: 1 })).addTo(group);
+        }
+        h.r = d * 1.9 * Math.sqrt(n - 1) + d;
+      }
+    });
+    const cur = sel && sel.get();
+    if (cur) ring.setLatLng([cur.lat, cur.lon]).setRadius(cur.r + 5).setStyle({ color: light ? '#141414' : '#ece8de' }).addTo(group);
+    lab.begin();
+    if (map.getZoom() >= 16) lab.streets(lines, '10px Helvetica, Arial, sans-serif', 'st', 12);
+  }
+  sel = Proto.selection({ data, map, onSelect: () => draw(), render: h => Proto.card(h, data) });
+  map.on('zoomend', draw);
+  map.on('moveend', () => { lab.begin(); if (map.getZoom() >= 16) lab.streets(lines, '10px Helvetica, Arial, sans-serif', 'st', 12); });
+
+  // кнопки: вид, цвет и размер меняются на месте, фон требует перерисовать подложку — страница перезагружается
+  const url = () => { const p = new URLSearchParams(st); history.replaceState(null, '', '?' + p); };
+  function controls() {
+    const row = (id, items, key, html, cls) => {
+      const el = document.getElementById(id); el.textContent = '';
+      Object.keys(items).forEach(v => {
+        const b = document.createElement('button');
+        b.className = (cls || '') + (st[key] === v ? ' on' : ''); html(b, v);
+        b.addEventListener('click', () => { st[key] = v; url(); if (key === 'b') location.reload(); else { controls(); draw(); } });
+        el.appendChild(b);
+      });
+    };
+    row('k-v', VIEWS, 'v', (b, v) => b.textContent = VIEWS[v][0]);
+    row('k-c', COLORS, 'c', (b, v) => { b.style.background = COLORS[v]; b.title = v; b.setAttribute('aria-label', v); }, 'sw');
+    row('k-s', SIZES, 's', (b, v) => b.textContent = SIZES[v][0]);
+    row('k-b', BGS, 'b', (b, v) => b.textContent = BGS[v]);
+    document.getElementById('leg').textContent = VIEWS[st.v][1];
+  }
+  const top = document.getElementById('top'), hide = document.getElementById('hide');
+  hide.addEventListener('click', () => { hide.textContent = top.classList.toggle('min') ? 'Настройки' : 'Скрыть'; });
+  controls();
+  draw();
+  Proto.header(data);
+}).catch(Proto.fail);
+</script>
+</body></html>
