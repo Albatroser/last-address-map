@@ -168,19 +168,21 @@ function dotStyle(n) {
   return { radius: Math.max(1.1, (3 + Math.sqrt(n) * 2.2) * k), weight: k > 0.6 ? 1 : 0, fillOpacity: k > 0.6 ? 0.45 : 0.6 };
 }
 let pickedYear = 0; // 0 — все годы
+let pickedStreet = null; // набор домов улицы, выбранной в поиске, или null
 const shown = m => pickedYear ? (m.byYear[pickedYear] || 0) : m.n;
 const RED = '#ff3b2f', GREY = '#8d8f94';
-// Выбран год: дома, где в этот год кого-то расстреляли, — такие же полупрозрачные красные круги, как на всех годах, поверх остальных
+// Выбрана улица в поиске — красными остаются только её дома. Выбран год: дома, где в этот год кого-то расстреляли, — такие же полупрозрачные красные круги, как на всех годах, поверх остальных
 // (размер — по числу за этот год); все прочие дома остаются на месте, но серые (размер — по общему числу).
 function redrawDots() {
-  const bright = [];
+  const filtered = pickedYear || pickedStreet, bright = [];
   dots.forEach(m => {
-    const n = shown(m), st = dotStyle(pickedYear ? (n || m.n) : n);
-    if (!pickedYear) m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, st));
-    else if (n) { // год выбран, в доме есть расстрелянные в этот год: такой же полупрозрачный красный круг, как на всех годах
+    const n = shown(m), on = n && (!pickedStreet || pickedStreet.has(m));
+    if (!filtered) m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, dotStyle(n)));
+    else if (on) { // дом подходит под выбранный год и выбранную улицу: такой же полупрозрачный красный круг, как обычно
+      const st = dotStyle(n);
       m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, st, { radius: Math.max(2, st.radius) }));
       bright.push(m);
-    } else m.setStyle({ color: GREY, fillColor: GREY, radius: st.radius, weight: 0, fillOpacity: 0.3 }); // остальные — серые
+    } else m.setStyle({ color: GREY, fillColor: GREY, radius: dotStyle(m.n).radius, weight: 0, fillOpacity: 0.3 }); // остальные — серые
   });
   bright.forEach(m => m.bringToFront());
 }
@@ -270,9 +272,11 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
     if (x.street) { // улица: показать все её дома на карте
       q.value = x.street;
       map.closePopup();
+      pickedStreet = new Set(x.list.map(h => h.m)); redrawDots();
       map.fitBounds(L.latLngBounds(x.list.map(h => h.m.getLatLng())), { paddingTopLeft: [40, 80], paddingBottomRight: [40, 60], maxZoom: 17, animate: false });
     } else {
       q.value = x.addr;
+      if (pickedStreet) { pickedStreet = null; redrawDots(); }
       map.setView(x.m.getLatLng(), Math.max(map.getZoom(), 17), { animate: false });
       x.m.openPopup();
     }
@@ -282,7 +286,7 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   q.oninput = () => {
     found = find(q.value); active = 0;
     hits.textContent = '';
-    if (!q.value.trim()) return;
+    if (!q.value.trim()) { if (pickedStreet) { pickedStreet = null; redrawDots(); } return; } // пустая строка поиска снимает выделение улицы
     if (!found.length) { hits.innerHTML = '<div class="none">Такой улицы или адреса нет среди домов на карте</div>'; return; }
     found.forEach((x, k) => {
       const b = document.createElement('button');
