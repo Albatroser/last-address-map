@@ -1,38 +1,200 @@
-// Черновая карта: дома Москвы, жильцы которых были расстреляны. Данные: data/moscow_points.json
-const map = L.map('map', { preferCanvas: true }).setView([55.7539, 37.6208], 12);
-
-// Подложки. CARTO требует ключ, OSM блокирует часть запросов — поэтому выбор вручную, справа вверху.
-const INVERT = 'invert(1) hue-rotate(180deg) brightness(.8) contrast(.9) grayscale(.6)';
-const TILES = {
-  'Esri тёмная': ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', '&copy; Esri', ''],
-  'Esri улицы': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', '&copy; Esri', INVERT],
-  'Яндекс': ['https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=1&lang=ru_RU', '&copy; Яндекс', INVERT],
-  'OpenStreetMap': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png', '&copy; OpenStreetMap', INVERT],
-};
-const layers = {};
-for (const k in TILES) {
-  const t = TILES[k];
-  layers[k] = L.tileLayer(t[0], { maxZoom: 19, attribution: t[1] });
-  layers[k]._filter = t[2];
-}
-L.control.layers(layers, null, { position: 'topright', collapsed: false }).addTo(map);
-map.on('baselayerchange', e => {
-  document.querySelector('.leaflet-tile-pane').style.filter = e.layer._filter;
-  document.getElementById('tl').textContent = 'Подложка: ' + e.name;
-});
-layers['Esri тёмная'].addTo(map);
-document.getElementById('tl').textContent = 'Подложка: Esri тёмная (сменить — справа вверху)';
-
+// Карта: дома Москвы, жильцы которых были расстреляны. Данные людей: data/moscow_points.json.
+// Подложка своя, без тайлов: контуры домов и улицы OpenStreetMap, нарезанные на клетки (data/base/,
+// собирает scripts/build_basemap.py). Крупные улицы видны всегда, дома и остальные улицы — с масштаба 15.
+const map = L.map('map', { renderer: L.canvas({ tolerance: 6, padding: 0.3 }), maxZoom: 19, minZoom: 10 }).setView([55.7539, 37.6208], 12);
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
+// ---------- подложка ----------
+const DETAIL_ZOOM = 15, LABEL_ZOOM = 16, KEEP_CELLS = 60;
+const STYLE = {
+  building: { color: '#24262b', fillColor: '#1b1d21', fillOpacity: 1, weight: 0.6 },
+  street: '#0a0b0c',   // улицы темнее фона: кварталы читаются как светлые острова
+  road: '#07080a',     // крупные улицы вблизи, среди домов
+  roadFar: '#282b31',  // они же издалека, когда домов нет: светлее фона, иначе не видны
+  width: { a: 20, b: 9, p: 12 }, // условная ширина улиц в метрах
+};
+map.createPane('base').style.zIndex = 250;
+const baseR = L.canvas({ pane: 'base', padding: 0.3 });
+const labelPane = map.createPane('labels');
+labelPane.style.zIndex = 450; labelPane.style.pointerEvents = 'none';
+
+const mpp = () => 156543.03 * Math.cos(map.getCenter().lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+const px = k => Math.max(k === 'a' ? 1.4 : 1, STYLE.width[k] / mpp());
+// плоский список целых (первая точка от угла o, дальше приращения, единица 1e-5°) → [[lat, lon], ...]
+function decode(flat, o) {
+  const out = []; let a = Math.round(o[0] * 1e5), b = Math.round(o[1] * 1e5);
+  for (let i = 0; i < flat.length; i += 2) { a += flat[i]; b += flat[i + 1]; out.push([a / 1e5, b / 1e5]); }
+  return out;
+}
+
+const base = { index: null, cells: new Map(), roads: null, roadLines: [], want: new Set() };
+const line = (rings, k) => L.polyline(rings, { renderer: baseR, interactive: false, color: k === 'a' ? STYLE.road : STYLE.street, weight: px(k), lineCap: 'round', lineJoin: 'round' });
+
+function loadCell(id) {
+  const c = { id, used: 0, layers: null, streets: [], state: 'loading' };
+  base.cells.set(id, c);
+  fetch('data/base/' + id + '.json').then(r => r.json()).then(t => {
+    const s = { b: [], p: [] };
+    t.s.forEach(([k, name, flat]) => { const pts = decode(flat, t.o); s[k].push(pts); if (name) c.streets.push({ name, pts }); });
+    c.layers = [];
+    if (s.b.length) c.layers.push(['b', line(s.b, 'b')]);
+    if (s.p.length) c.layers.push(['p', line(s.p, 'p')]);
+    if (t.b.length) c.layers.push(['h', L.polygon(t.b.map(f => decode(f, t.o)), Object.assign({ renderer: baseR, interactive: false }, STYLE.building))]);
+    c.state = 'ready';
+    refreshBase();
+  }).catch(() => { c.state = 'failed'; });
+}
+
+function refreshBase() {
+  if (!base.index) return;
+  const detail = map.getZoom() >= DETAIL_ZOOM, want = new Set();
+  if (detail) {
+    const b = map.getBounds(), { cl, co } = base.index;
+    for (let a = Math.floor(b.getSouth() / cl + 1e-9); a <= Math.floor(b.getNorth() / cl + 1e-9); a++)
+      for (let o = Math.floor(b.getWest() / co + 1e-9); o <= Math.floor(b.getEast() / co + 1e-9); o++)
+        if (base.index.set.has(a + '_' + o)) want.add(a + '_' + o);
+  }
+  base.want = want;
+  const now = Date.now();
+  want.forEach(id => { const c = base.cells.get(id); if (!c) loadCell(id); else c.used = now; });
+  base.cells.forEach(c => {
+    if (c.state !== 'ready') return;
+    const on = want.has(c.id);
+    c.layers.forEach(([, l]) => { if (on && !map.hasLayer(l)) l.addTo(map); if (!on && map.hasLayer(l)) map.removeLayer(l); });
+  });
+  if (base.cells.size > KEEP_CELLS) { // давно не нужные клетки выбрасываются из памяти
+    [...base.cells.values()].filter(c => c.state === 'ready' && !want.has(c.id)).sort((x, y) => x.used - y.used)
+      .slice(0, base.cells.size - KEEP_CELLS).forEach(c => base.cells.delete(c.id));
+  }
+  drawLabels();
+}
+function restyleBase() {
+  if (base.roads) base.roads.setStyle({ weight: px('a'), color: map.getZoom() >= DETAIL_ZOOM ? STYLE.road : STYLE.roadFar });
+  base.cells.forEach(c => c.layers && c.layers.forEach(([k, l]) => { if (k !== 'h') l.setStyle({ weight: px(k) }); }));
+}
+
+// ---------- подписи улиц: одна на улицу, посередине самой длинной непрерывной линии в кадре ----------
+const short = n => n.replace(/переулок/i, 'пер.').replace(/улица/i, 'ул.').replace(/бульвар/i, 'б-р').replace(/площадь/i, 'пл.')
+  .replace(/проезд/i, 'пр.').replace(/проспект/i, 'пр-т').replace(/набережная/i, 'наб.').replace(/шоссе/i, 'ш.')
+  .replace(/Больш(ой|ая)/, 'Б.').replace(/Мал(ый|ая)/, 'М.').replace(/Средн(ий|яя)/, 'Ср.').trim();
+const measure = document.createElement('canvas').getContext('2d');
+const LABEL_FONT = '10px system-ui, sans-serif';
+function drawLabels() {
+  labelPane.textContent = '';
+  if (map.getZoom() < LABEL_ZOOM) return;
+  const view = map.getBounds().pad(0.2), by = {};
+  const take = s => { if (s.pts.some(p => view.contains(p))) (by[s.name] = by[s.name] || []).push(s.pts.slice()); };
+  base.want.forEach(id => { const c = base.cells.get(id); if (c && c.state === 'ready') c.streets.forEach(take); });
+  base.roadLines.forEach(take);
+  const key = p => p[0] + ',' + p[1], boxes = [], m = mpp();
+  measure.font = LABEL_FONT;
+  Object.keys(by).forEach(name => {
+    const lines = by[name];
+    let merged = true;
+    while (merged) { // куски одной улицы склеиваются по общим концам
+      merged = false;
+      outer: for (let i = 0; i < lines.length; i++) for (let j = 0; j < lines.length; j++) {
+        if (i === j) continue;
+        const a = lines[i], b = lines[j];
+        let c = null;
+        if (key(a[a.length - 1]) === key(b[0])) c = a.concat(b.slice(1));
+        else if (key(a[a.length - 1]) === key(b[b.length - 1])) c = a.concat(b.slice(0, -1).reverse());
+        else if (key(a[0]) === key(b[0])) c = a.slice().reverse().concat(b.slice(1));
+        if (c) { lines[i] = c; lines.splice(j, 1); merged = true; break outer; }
+      }
+    }
+    const pts = lines.map(l => l.map(p => map.latLngToLayerPoint(p)));
+    const len = l => { let s = 0; for (let i = 1; i < l.length; i++) s += l[i].distanceTo(l[i - 1]); return s; };
+    const best = pts.map(l => [len(l), l]).sort((x, y) => y[0] - x[0])[0];
+    const text = short(name), w = measure.measureText(text).width * 1.18 + 8; // капс и разрядка шире обычного набора
+    if (best[0] < w * 0.9) return;
+    let acc = 0; const l = best[1], half = best[0] / 2;
+    for (let i = 1; i < l.length; i++) {
+      const seg = l[i].distanceTo(l[i - 1]);
+      if (acc + seg >= half) {
+        const t = (half - acc) / (seg || 1), x = l[i - 1].x + (l[i].x - l[i - 1].x) * t, y = l[i - 1].y + (l[i].y - l[i - 1].y) * t;
+        let ang = Math.atan2(l[i].y - l[i - 1].y, l[i].x - l[i - 1].x) * 180 / Math.PI;
+        if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+        const r = ang * Math.PI / 180, bw = Math.abs(w * Math.cos(r)) + Math.abs(12 * Math.sin(r)), bh = Math.abs(w * Math.sin(r)) + Math.abs(12 * Math.cos(r));
+        const box = [x - bw / 2, y - bh / 2, bw, bh];
+        if (boxes.some(b => box[0] < b[0] + b[2] + 2 && box[0] + box[2] + 2 > b[0] && box[1] < b[1] + b[3] + 2 && box[1] + box[3] + 2 > b[1])) return;
+        boxes.push(box);
+        const d = document.createElement('div');
+        d.className = 'st'; d.textContent = text;
+        d.style.cssText = 'left:' + (x - w / 2).toFixed(1) + 'px;top:' + (y - 6).toFixed(1) + 'px;width:' + w.toFixed(1) + 'px;transform:rotate(' + ang.toFixed(1) + 'deg)';
+        labelPane.appendChild(d);
+        return;
+      }
+      acc += seg;
+    }
+  });
+}
+
+map.on('zoomstart', () => { labelPane.style.visibility = 'hidden'; });
+map.on('zoomend', () => { labelPane.style.visibility = ''; restyleBase(); });
+map.on('moveend', refreshBase);
+
+Promise.all([fetch('data/base/index.json').then(r => r.json()), fetch('data/base/roads.json').then(r => r.json())]).then(([index, roads]) => {
+  index.set = new Set(index.cells);
+  base.index = index;
+  base.roadLines = roads.map(([name, flat]) => ({ name, pts: decode(flat, [0, 0]) }));
+  base.roads = line(base.roadLines.map(r => r.pts), 'a').addTo(map);
+  restyleBase();
+  document.getElementById('tl').textContent = 'Дома и улицы: ' + index.source + '. Контуры современные; дома видны при приближении.';
+  refreshBase();
+}).catch(e => {
+  document.getElementById('tl').textContent = 'Подложка не загрузилась: ' + e.message;
+});
+
+// ---------- точки и попап ----------
+// Вблизи (масштаб 16 и крупнее) круг такой же, как в исходном дизайне: радиус 3 + √n · 2,2 px.
+// Издалека круги сжимаются вдвое на каждые два шага масштаба и теряют обводку,
+// чтобы центр города был виден как россыпь точек, а не как сплошное пятно.
+const dots = [];
+function dotStyle(n) {
+  const k = Math.min(1, Math.pow(2, (map.getZoom() - 16) * 0.5));
+  return { radius: Math.max(1.1, (3 + Math.sqrt(n) * 2.2) * k), weight: k > 0.6 ? 1 : 0, fillOpacity: k > 0.6 ? 0.45 : 0.6 };
+}
+map.on('zoomend', () => dots.forEach(m => m.setStyle(dotStyle(m.n))));
+
+// Окно дома. Сверху сводка: сколько человек, квартир, какие годы, столбики расстрелов по годам.
+// Ниже люди по дате расстрела. У каждого три слоя: имя и годы жизни; кем был; остальное мельче.
+// Человек: [кв, ФИО, год рождения, дата расстрела, место захоронения, биография, место рождения, национальность, партийность, работа]
+const plural = (n, one, few, many) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 10 || b >= 20) ? few : many; };
+const dateKey = s => { const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s || ''); return m ? +m[3] * 10000 + +m[2] * 100 + +m[1] : 99999999; };
+function popupHtml(addr, people) {
+  const ppl = people.slice().sort((a, b) => dateKey(a[3]) - dateKey(b[3]));
+  const inApt = {}; ppl.forEach(p => { if (p[0]) inApt[p[0]] = (inApt[p[0]] || 0) + 1; });
+  const apts = Object.keys(inApt).length;
+  const years = ppl.map(p => +(/(\d{4})$/.exec(p[3]) || [])[1]).filter(Boolean), cnt = {};
+  years.forEach(y => cnt[y] = (cnt[y] || 0) + 1);
+  const y0 = Math.min(...years), y1 = Math.max(...years), top = Math.max(...Object.values(cnt));
+  let sum = ppl.length + ' ' + plural(ppl.length, 'человек', 'человека', 'человек');
+  if (apts) sum += ' · ' + apts + ' ' + plural(apts, 'квартира', 'квартиры', 'квартир');
+  if (years.length) sum += ' · ' + (y0 === y1 ? y0 : y0 + '–' + y1);
+  let bars = '';
+  if (years.length && y1 > y0) {
+    for (let y = y0; y <= y1; y++) bars += '<i' + (cnt[y] ? ' style="height:' + Math.max(8, Math.round(cnt[y] / top * 100)) + '%" title="' + y + ': ' + cnt[y] + '"' : ' class="z"') + '></i>';
+    bars = '<div class="yrs">' + bars + '</div><div class="ax"><span>' + y0 + '</span><span>расстрелов по годам</span><span>' + y1 + '</span></div>';
+  }
+  return '<div class="pp"><h3>' + esc(addr) + '</h3><div class="sum">' + sum + '</div>' + bars +
+    ppl.map(([apt, name, by, ex, bur, bio, born, nat, party, job]) => {
+      const rest = [
+        apt ? 'кв. ' + esc(apt) + (inApt[apt] > 1 ? ' (в этой квартире расстреляно ' + inApt[apt] + ')' : '') : '',
+        bur ? 'захоронение: ' + esc(bur) : '',
+        born ? 'род.: ' + esc(born) : '', esc(nat || ''), esc(party || ''),
+      ].filter(Boolean).join(' · ');
+      return '<div class="p"><div><span class="n">' + esc(name) + '</span> <span class="life">' + (by ? by + ' – ' : 'расстрел ') + esc(ex) + '</span></div>' +
+        '<div class="job">' + esc(nat ? job : bio) + '</div><div class="m">' + rest + '</div></div>';
+    }).join('') + '</div>';
+}
 fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   let people = 0;
   D.forEach(([lat, lon, addr, ppl]) => {
     people += ppl.length;
-    const m = L.circleMarker([lat, lon], { radius: 3 + Math.sqrt(ppl.length) * 2.2, color: '#ff3b2f', weight: 1, fillColor: '#ff3b2f', fillOpacity: .45 });
-    m.bindPopup(() => '<div class="pp"><h3>' + esc(addr) + ' — ' + ppl.length + ' чел.</h3>' +
-      ppl.map(([apt, name, by, ex, bur, job]) => '<div class="p"><span class="n">' + esc(name) + '</span>' + (by ? ', ' + by + ' г.р.' : '') +
-        '<br>кв. ' + esc(apt) + ' · расстрелян(а) ' + esc(ex) + (bur ? ' · ' + esc(bur) : '') + '<br><span class="m">' + esc(job) + '</span></div>').join('') + '</div>', { maxWidth: 360 });
+    const m = L.circleMarker([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
+    m.n = ppl.length; dots.push(m);
+    m.bindPopup(() => popupHtml(addr, ppl), { maxWidth: 360 });
     m.addTo(map);
   });
   document.getElementById('cnt').textContent = D.length.toLocaleString('ru') + ' домов, ' + people.toLocaleString('ru') + ' человек (из 11 789: у остальных нет координат)';

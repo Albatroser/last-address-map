@@ -1,31 +1,90 @@
-"""Собирает site/data/moscow_points.json из data/moscow/*.csv.
-Формат: [[lat, lon, "адрес", [[кв, ФИО, год_рождения, дата_расстрела, место_захоронения, биография], ...]], ...]
+"""Собирает site/data/moscow_points.json из data/moscow/*.csv. Нужен только стандартный Python.
+
+Формат: [[lat, lon, "адрес", [человек, ...]], ...], человек — список:
+  0 квартира ("" — не указана)   1 ФИО            2 год рождения      3 дата расстрела
+  4 место захоронения             5 строка биографии как в источнике (без «род. …» и без адреса)
+  6 место рождения                7 национальность 8 партийность       9 работа, должность
+Поля 6–9 получены разбором строки 5 и заполнены, только если строка разобралась целиком;
+иначе они пустые, а показывать нужно строку 5.
+
 Запуск из корня репозитория: python scripts/build_moscow_points.py
 """
-import json, re, os
-import pandas as pd
+import csv
+import json
+import re
+from collections import defaultdict
+from pathlib import Path
 
-R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-M = R + '/data/moscow/'
-ad = pd.read_csv(M + 'addresses.csv'); pe = pd.read_csv(M + 'persons.csv'); gk = pd.read_csv(M + 'addresses_geocoded.csv')
-norm = lambda s: re.sub(r'\s+', ' ', str(s)).strip().lower()
-gk['key'] = gk.street.map(norm) + '|' + gk.house.map(norm)
-ad['key'] = ad.ADDRESS.str.replace(r',\s*(д\.)', r'|\1', regex=True).map(lambda s: '|'.join(norm(x) for x in s.split('|', 1)))
-m = ad.merge(gk[['key', 'latitude', 'longitude']].dropna().drop_duplicates('key'), on='key', how='left')
+R = Path(__file__).resolve().parent.parent
+M = R / "data" / "moscow"
 
-def short(b):
-    b = str(b)
-    by = re.search(r'род\.\s*(?:\d{1,2}\.\d{1,2}\.)?(\d{4})', b)
-    ex = re.search(r'асс+трелян[аы]?\s+(\d{1,2}\.\d{1,2}\.\d{4})', b)
-    bu = re.search(r'Место захоронения:\s*([^.]+)', b)
-    job = re.sub(r'\.\s*Адрес:.*', '', b); job = re.sub(r'^род\.[^,]*,', '', job).strip()
-    return [by.group(1) if by else '', ex.group(1) if ex else '', bu.group(1).strip() if bu else '', job[:160]]
 
-g = pe.groupby('ADDRESS_ID'); out = []
-for _, r in m[m.latitude.notna()].iterrows():
-    ppl = [[str(p.APT), p.NAME] + short(p.BIO) for p in g.get_group(r.ADDRESS_ID).itertuples()]
-    out.append([round(r.latitude, 5), round(r.longitude, 5), r.ADDRESS, ppl])
-os.makedirs(R + '/site/data', exist_ok=True)
-with open(R + '/site/data/moscow_points.json', 'w', encoding='utf-8') as f:
-    f.write('[\n' + ',\n'.join(json.dumps(x, ensure_ascii=False, separators=(',', ':')) for x in out) + '\n]\n')
-print('домов:', len(out), '| людей:', sum(len(x[3]) for x in out), 'из', len(pe), '| адресов без координат:', int(m.latitude.isna().sum()))
+def rows(name):
+    with open(M / name, encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def norm(s):
+    return re.sub(r"\s+", " ", s if s != "" else "nan").strip().lower()  # пустая ячейка — как NaN в прежней сборке
+
+
+# партийность: с чего может начинаться третий с конца кусок биографии
+PARTY = (r"(?:б/п|беспартийн\w*|член\w* [^,]*|чл\. [^,]*|кандидат\w* [^,]*|канд\. [^,]*|бывш\w* [^,]*|искл\w*[^,]*|"
+         r"исключ\w*[^,]*|выбыл\w*[^,]*|вышел [^,]*|из ВКП[^,]*|комсомол\w*[^,]*|"
+         r"кадет|эсер\w*|меньшевик\w*|анархист\w*|бундов\w*)(?: \([^)]*\))?")
+NAT = r"[а-яё][а-яё\-]{2,20}(?: \([^)]*\))?"  # одно слово со строчной буквы, иногда с уточнением в скобках
+BIO = re.compile(rf"^(?P<born>.+?), (?P<nat>{NAT}), (?P<party>{PARTY})(?:, (?P<job>.+))?$")
+NOT_NAT = {"уезд", "волость", "район", "губ", "обл", "село", "деревня", "хутор", "станция", "местечко"}
+
+
+def person(p):
+    name, b = p["NAME"].strip(), p["BIO"]
+    # в источнике 19 имён разорваны на скобке: «Бухвальд Игнат (Исаак» + «Игнатий) Аронович, род. …»
+    if name.count("(") != name.count(")"):
+        m = re.match(r"^(.*?\)[^,]*), (род\..*)$", b)
+        if m:
+            name, b = name + ", " + m.group(1), m.group(2)
+    by = re.search(r"род\.\s*(?:\d{1,2}\.\d{1,2}\.)?(\d{4})", b)
+    ex = re.search(r"асс+трелян[аы]?\s+(\d{1,2}\.\d{1,2}\.\d{4})", b)
+    bu = re.search(r"Место захоронения:\s*([^.]+)", b)
+    bio = re.sub(r"\.\s*Адрес:.*", "", b)
+    bio = re.sub(r"^род\.[^,]*,", "", bio).strip()
+    m = BIO.match(bio)
+    parts = ["", "", "", ""]
+    if m and m.group("nat") not in NOT_NAT:
+        born = re.sub(r"^в ", "", m.group("born"))
+        parts = [born, m.group("nat"), m.group("party"), m.group("job") or ""]
+    apt = p["APT"].replace("\xa0", " ").strip()
+    return [apt, name, by.group(1) if by else "", ex.group(1) if ex else "", bu.group(1).strip() if bu else "", bio] + parts
+
+
+def main():
+    ad, pe, gk = rows("addresses.csv"), rows("persons.csv"), rows("addresses_geocoded.csv")
+    coords = {}
+    for g in gk:
+        if g["latitude"] and g["longitude"]:
+            coords.setdefault(norm(g["street"]) + "|" + norm(g["house"]), (float(g["latitude"]), float(g["longitude"])))
+    by_addr = defaultdict(list)
+    for p in pe:
+        by_addr[p["ADDRESS_ID"]].append(p)
+    out, missing, parsed, total = [], 0, 0, 0
+    for a in ad:
+        key = "|".join(norm(x) for x in re.sub(r",\s*(д\.)", r"|\1", a["ADDRESS"]).split("|", 1))
+        if key not in coords:
+            missing += 1
+            continue
+        ppl = [person(p) for p in by_addr[a["ADDRESS_ID"]]]
+        total += len(ppl)
+        parsed += sum(1 for x in ppl if x[7])
+        lat, lon = coords[key]
+        out.append([round(lat, 5), round(lon, 5), a["ADDRESS"], ppl])
+    dst = R / "site" / "data" / "moscow_points.json"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with open(dst, "w", encoding="utf-8", newline="\n") as f:
+        f.write("[\n" + ",\n".join(json.dumps(x, ensure_ascii=False, separators=(",", ":")) for x in out) + "\n]\n")
+    print("домов:", len(out), "| людей:", total, "из", len(pe), "| адресов без координат:", missing,
+          "| биография разобрана по полям:", parsed, f"({parsed / total * 100:.1f}%)")
+
+
+if __name__ == "__main__":
+    main()
