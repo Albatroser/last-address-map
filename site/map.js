@@ -234,7 +234,10 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
   // окно дома не должно уходить под строку поиска; на узком экране оно ещё и уже
   const popupOpts = { maxWidth: Math.min(360, window.innerWidth - 50), autoPanPaddingTopLeft: [10, search.offsetHeight + 24] };
   const houses = [], partyAll = [0, 0]; // [членов ВКП(б), всего людей] по всей карте
+  // Служебный просмотр: адрес страницы с ?min=20 оставляет на карте только дома, где расстреляно не меньше 20 человек.
+  const MIN = +new URLSearchParams(location.search).get('min') || 0;
   D.forEach(([lat, lon, addr, ppl]) => {
+    if (ppl.length < MIN) return;
     people += ppl.length;
     const m = L.circleMarker([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
     m.n = ppl.length; m.byYear = {}; dots.push(m);
