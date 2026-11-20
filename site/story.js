@@ -17,12 +17,8 @@
   if (params.has('map') || params.has('min')) { finish(); return; }
   skip.onclick = finish;
 
-  // Всего людей в базе «Расстрелы в Москве» (data/moscow/persons.csv, число из README.md).
-  // На карте только те, у чьих домов есть координаты; разница показывается на последнем экране.
-  const TOTAL_IN_BASE = 11789;
   const CITY = [55.7539, 37.6208];
   const fmt = n => n.toLocaleString('ru');
-  const people = n => fmt(n) + ' ' + plural(n, 'человек', 'человека', 'человек');
   const homes = n => fmt(n) + ' ' + plural(n, 'дом', 'дома', 'домов');
   const shotVerb = n => plural(n, 'расстрелян', 'расстреляны', 'расстреляны');
 
@@ -300,13 +296,26 @@
     }
 
     // ---------- 4. Оговорки ----------
+    // Таблички «Последнего адреса»: у кого из людей на карте они есть (data/last_address.json,
+    // собирает scripts/build_last_address.py по таблице на сайте проекта; способ сопоставления описан там).
+    // Файл грузится заранее; если не загрузился, финал обходится без строк о табличках.
+    let plaques = null;
+    fetch('data/last_address.json').then(r => r.json()).then(d => {
+      const set = new Set(d.people);
+      plaques = P.filter(x => set.has(x.p[1] + '|' + (x.p[2] || ''))).length;
+    }).catch(() => {});
     function caveats() {
       veil.style.transitionDuration = ''; veil.classList.remove('clear'); veil.classList.add('dim');
       box.className = 'center';
-      box.innerHTML = '<div><p>На карте ' + people(P.length) + '. Это не все.</p>' +
-        '<p>Здесь только расстрелянные, только в Москве и только те, чей адрес известен. Ещё ' + people(TOTAL_IN_BASE - P.length) +
-        ' из той же базы на карту не попали: их адреса не удалось найти.</p>' +
-        '<p class="quiet">Данные: «Мемориал», база «Расстрелы в Москве».</p><button>Смотреть карту</button></div>';
+      // Текст утверждён Ильёй 2026-11-20. «Любой человек, не только родственник» — из инструкции проекта:
+      // https://www.poslednyadres.ru/zayavka/ (туда же ведёт ссылка).
+      box.innerHTML = '<div><p>На карте ' + fmt(P.length) + ' расстрелянных. Это не все: здесь только Москва и только те, чей адрес известен.</p>' +
+        (plaques ? '<p>У ' + fmt(plaques) + ' из них на доме есть табличка «Последнего адреса»: имя, профессия, даты рождения, ареста и расстрела.</p>' +
+          '<p>У остальных ' + fmt(P.length - plaques) + ' таблички нет.</p>' +
+          '<p>Поставить её может любой человек, не только родственник.</p>' : '') +
+        '<p class="quiet">Данные: «Мемориал», база «Расстрелы в Москве»' + (plaques ? '; таблички — сайт «Последнего адреса», 20.11.2026' : '') + '.</p>' +
+        '<div class="go">' + (plaques ? '<a class="btn" href="https://www.poslednyadres.ru/zayavka/" target="_blank" rel="noopener">Как поставить табличку</a>' : '') +
+        '<button>Смотреть карту</button></div></div>';
       box.querySelector('button').onclick = finish;
     }
   };
