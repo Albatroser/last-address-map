@@ -7,10 +7,11 @@
 html,body,#map{margin:0;height:100%;background:#0e0f11}
 .leaflet-container{background:#0e0f11}
 .st{position:absolute;white-space:nowrap;text-align:center;font:10px/12px system-ui,sans-serif;color:#5a5c62;letter-spacing:.08em;text-transform:uppercase}
-#search{position:absolute;z-index:650;top:12px;left:56px;right:12px;max-width:340px;font:14px/1.4 system-ui,sans-serif}
-#q{width:100%;box-sizing:border-box;background:rgba(15,15,15,.9);color:#eee;border:1px solid #444;border-radius:6px;padding:9px 12px;font:inherit;outline:0}
-#q:focus{border-color:#888}
-#q::placeholder{color:#888}
+#search{position:absolute;z-index:650;top:12px;left:56px;right:12px;max-width:440px;font:14px/1.4 system-ui,sans-serif}
+/* строка поиска — главный вход в свободную карту, поэтому крупная и светлая на тёмном фоне */
+#q{width:100%;box-sizing:border-box;background:#f2f2f2 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23555' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='8.5' cy='8.5' r='5.5'/%3E%3Cpath d='M13 13l5 5'/%3E%3C/svg%3E") 14px 50%/20px no-repeat;color:#111;border:2px solid #f2f2f2;border-radius:8px;padding:12px 14px 12px 44px;font:17px/1.3 system-ui,sans-serif;outline:0;box-shadow:0 2px 14px rgba(0,0,0,.6)}
+#q:focus{border-color:#ff3b2f;background-color:#fff}
+#q::placeholder{color:#666}
 #hits{margin-top:4px;background:rgba(15,15,15,.95);border-radius:6px;overflow:hidden}
 #hits button{display:flex;justify-content:space-between;gap:12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid #2a2a2a;color:#ddd;font:inherit;padding:8px 12px;cursor:pointer}
 #hits button:first-child{border-top:0}
@@ -20,7 +21,7 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 #hits .eg{padding:6px 12px;color:#888;font-size:12.5px}
 #hits .eg a{color:#bbb;text-decoration:underline;text-decoration-color:#555;text-underline-offset:2px;cursor:pointer}
 #hits .eg a:hover{color:#fff}
-#msg{position:absolute;z-index:660;top:60px;left:56px;right:12px;max-width:340px;background:#3a1512;color:#fff;font:13px/1.4 system-ui,sans-serif;padding:8px 12px;border-radius:6px}
+#msg{position:absolute;z-index:660;top:72px;left:56px;right:12px;max-width:440px;background:#3a1512;color:#fff;font:13px/1.4 system-ui,sans-serif;padding:8px 12px;border-radius:6px}
 .leaflet-control-attribution{background:rgba(15,15,15,.7)!important;color:#777!important;font:10px/1.4 system-ui,sans-serif!important;white-space:normal;max-width:70vw;text-align:right}
 @media (max-width:600px){#time{bottom:62px}.leaflet-control-attribution{max-width:100vw}}
 .leaflet-popup-content-wrapper{background:#1b1b1b;color:#ddd;border-radius:6px}
