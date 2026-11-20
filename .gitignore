@@ -1,0 +1,9 @@
+# Сырые данные не хранятся в git (сотни МБ) — см. data/raw/README.md
+data/raw/*
+!data/raw/README.md
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+Thumbs.db
+*.log
