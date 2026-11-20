@@ -140,28 +140,23 @@ Promise.all([fetch('data/base/index.json').then(r => r.json()), fetch('data/base
   base.roadLines = roads.map(([name, flat]) => ({ name, pts: decode(flat, [0, 0]) }));
   base.roads = line(base.roadLines.map(r => r.pts), 'a').addTo(map);
   restyleBase();
-  document.getElementById('tl').textContent = 'Дома и улицы: ' + index.source + '. Контуры современные; дома видны при приближении.';
+  map.attributionControl.addAttribution('Дома и улицы: ' + index.source + ', контуры современные');
   refreshBase();
 }).catch(e => {
-  document.getElementById('tl').textContent = 'Подложка не загрузилась: ' + e.message;
+  say('Подложка не загрузилась: ' + e.message);
 });
 
-// ---------- плашка: на узком экране свёрнута до заголовка и счётчика, чтобы не закрывать карту и окно дома ----------
-const info = document.getElementById('info'), infoBtn = document.getElementById('info-btn');
-const narrow = () => window.matchMedia('(max-width: 600px)').matches;
-function foldInfo(min) { info.classList.toggle('min', min); infoBtn.textContent = min ? 'Подробнее' : 'Свернуть'; }
-infoBtn.onclick = () => foldInfo(!info.classList.contains('min'));
-foldInfo(true);
-map.on('popupopen', e => {
-  if (narrow()) foldInfo(true);
-  // высота плашки меняется (счётчик бывает в одну или две строки), поэтому после штатного сдвига карты
-  // проверяем, не осталось ли окно под плашкой, и досдвигаем
-  setTimeout(() => {
-    const el = e.popup.getElement(); if (!el) return;
-    const ib = info.getBoundingClientRect(), pb = el.getBoundingClientRect();
-    if (pb.top < ib.bottom + 8 && pb.left < ib.right && pb.right > ib.left) map.panBy([0, pb.top - ib.bottom - 8]);
-  }, 350);
-});
+// ---------- источники и сообщения об ошибках ----------
+map.attributionControl.setPrefix('');
+map.attributionControl.addAttribution('Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский');
+const search = document.getElementById('search');
+function say(text) { const el = document.getElementById('msg'); el.textContent = text; el.hidden = false; }
+// окно дома не должно оставаться под строкой поиска: после штатного сдвига карты проверяем и досдвигаем
+map.on('popupopen', e => setTimeout(() => {
+  const el = e.popup.getElement(); if (!el) return;
+  const ib = search.getBoundingClientRect(), pb = el.getBoundingClientRect();
+  if (pb.top < ib.bottom + 8 && pb.left < ib.right && pb.right > ib.left) map.panBy([0, pb.top - ib.bottom - 8]);
+}, 350));
 
 // ---------- точки и попап ----------
 // Вблизи (масштаб 16 и крупнее) круг такой же, как в исходном дизайне: радиус 3 + √n · 2,2 px.
@@ -196,6 +191,7 @@ map.on('zoomend', redrawDots);
 // Человек: [кв, ФИО, год рождения, дата расстрела, место захоронения, биография, место рождения, национальность, партийность, работа]
 const plural = (n, one, few, many) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 10 || b >= 20) ? few : many; };
 const yearOf = s => +(/(\d{4})$/.exec(s || '') || [])[1] || 0;
+const norm = s => String(s).toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim();
 const dateKey = s => { const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s || ''); return m ? +m[3] * 10000 + +m[2] * 100 + +m[1] : 99999999; };
 function popupHtml(addr, people) {
   const ppl = people.slice().sort((a, b) => dateKey(a[3]) - dateKey(b[3]));
@@ -226,9 +222,9 @@ function popupHtml(addr, people) {
 }
 fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   let people = 0;
-  // окно дома не должно уходить под плашку; на узком экране оно ещё и уже
-  const popupOpts = { maxWidth: Math.min(360, window.innerWidth - 50), autoPanPaddingTopLeft: [10, info.offsetHeight + 24] };
-  const cnt = document.getElementById('cnt');
+  // окно дома не должно уходить под строку поиска; на узком экране оно ещё и уже
+  const popupOpts = { maxWidth: Math.min(360, window.innerWidth - 50), autoPanPaddingTopLeft: [10, search.offsetHeight + 24] };
+  const houses = [];
   D.forEach(([lat, lon, addr, ppl]) => {
     people += ppl.length;
     const m = L.circleMarker([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
@@ -236,10 +232,49 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
     ppl.forEach(q => { const y = yearOf(q[3]); if (y) m.byYear[y] = (m.byYear[y] || 0) + 1; });
     m.bindPopup(() => popupHtml(addr, ppl), popupOpts);
     m.addTo(map);
+    houses.push({ addr, m, key: ' ' + norm(addr) + ' ' });
   });
   const fmt = n => n.toLocaleString('ru');
-  const total = fmt(D.length) + ' ' + plural(D.length, 'дом', 'дома', 'домов') + ', ' + fmt(people) + ' ' + plural(people, 'человек', 'человека', 'человек');
-  cnt.textContent = total + ' (из 11 789: у остальных нет координат)';
+
+  // ---------- поиск по адресу: только среди домов, которые есть на карте ----------
+  const q = document.getElementById('q'), hits = document.getElementById('hits');
+  const SKIP = new Set(['улица', 'ул', 'переулок', 'пер', 'дом', 'д', 'проспект', 'просп', 'пр', 'бульвар', 'бул', 'площадь', 'пл', 'набережная', 'наб', 'шоссе', 'ш', 'проезд', 'корп', 'корпус', 'стр', 'строение', 'москва']);
+  function find(text) {
+    const words = norm(text).split(' ').filter(w => w && !SKIP.has(w));
+    if (!words.length) return [];
+    const out = [];
+    houses.forEach(h => {
+      let score = 0;
+      for (const w of words) {
+        if (/^\d/.test(w)) { // номер дома: целое слово лучше, чем начало слова
+          if (h.key.includes(' ' + w + ' ')) score += 3; else if (h.key.includes(' ' + w)) score += 1; else return;
+        } else if (h.key.includes(' ' + w)) score += 4; else if (h.key.includes(w)) score += 1; else return; // начало слова в названии улицы важнее всего
+      }
+      out.push([score, h]);
+    });
+    return out.sort((a, b) => b[0] - a[0] || a[1].addr.length - b[1].addr.length || a[1].addr.localeCompare(b[1].addr, 'ru')).slice(0, 8).map(x => x[1]);
+  }
+  function go(h) {
+    hits.textContent = ''; q.value = h.addr; q.blur();
+    map.setView(h.m.getLatLng(), Math.max(map.getZoom(), 17), { animate: false });
+    h.m.openPopup();
+  }
+  let found = [];
+  q.oninput = () => {
+    found = find(q.value);
+    hits.textContent = '';
+    if (!q.value.trim()) return;
+    if (!found.length) { hits.innerHTML = '<div class="none">Такого адреса нет среди домов на карте</div>'; return; }
+    found.forEach(h => {
+      const b = document.createElement('button');
+      b.innerHTML = esc(h.addr) + ' <span>' + h.m.n + ' чел.</span>';
+      b.onclick = () => go(h);
+      hits.appendChild(b);
+    });
+  };
+  q.onkeydown = e => { if (e.key === 'Enter' && found.length) go(found[0]); if (e.key === 'Escape') { hits.textContent = ''; q.blur(); } };
+  map.on('click', () => { hits.textContent = ''; });
+  search.hidden = false;
 
   // ---------- общий таймлайн: ползунок по годам; выбранный год выделяется на карте, остальные дома бледнеют ----------
   const byYear = {}, housesIn = {};
@@ -256,7 +291,6 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
     const n = byYear[y] || 0;
     head.innerHTML = !y ? '<b>' + y0 + '–' + y1 + '</b> — все годы. Двигайте ползунок, чтобы выделить год на карте.'
       : '<b>' + y + '</b> — ' + (n ? ppl(n) + ', ' + hs(housesIn[y]) : 'в базе нет расстрелянных с известным адресом') + ' <button id="time-all">Все годы</button>';
-    cnt.textContent = y ? 'Выделен ' + y + ' год: ' + (n ? hs(housesIn[y]) + ', ' + ppl(n) : 'никого') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
     const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(0);
   }
   // линия под ползунком: по одинаковой клетке на год, без цвета по числу расстрелянных (так решил Илья)
@@ -284,5 +318,5 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   };
   pick(0);
 }).catch(e => {
-  document.getElementById('cnt').textContent = 'Данные не загрузились: ' + e.message + '. Страницу нужно открывать через веб-сервер, а не как файл.';
+  say('Данные не загрузились: ' + e.message + '. Страницу нужно открывать через веб-сервер, а не как файл.');
 });
