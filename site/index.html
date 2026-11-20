@@ -18,16 +18,26 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 .pp .m{color:#888;font-size:11.5px;margin-top:2px}
 .pp h3{margin-bottom:2px}
 .pp .sum{color:#bbb;margin-bottom:8px}
-.pp .yrs{display:flex;align-items:flex-end;gap:2px;height:36px;border-bottom:1px solid #555}
-.pp .yrs i{flex:1;min-width:2px;background:#ff6b5b}
-.pp .yrs i.z{background:none}
-.pp .ax{display:flex;justify-content:space-between;color:#888;font-size:11px;margin:2px 0 8px}
 .pp .life{color:#bbb;white-space:nowrap}
 .pp .job{color:#ddd}
+#time{position:absolute;z-index:650;left:12px;right:12px;bottom:12px;max-width:620px;font:13px/1.4 system-ui,sans-serif;color:#ddd;pointer-events:none}
+#time>*{pointer-events:auto}
+#time-btn{background:rgba(15,15,15,.85);color:#ddd;border:1px solid #444;border-radius:6px;padding:7px 12px;font:inherit;cursor:pointer}
+#time-panel{background:rgba(15,15,15,.9);border-radius:6px;padding:10px 12px 6px;margin-bottom:8px}
+#time-head b{color:#fff}
+#time-head button{margin-left:8px;background:none;border:1px solid #666;border-radius:4px;color:#ddd;font:inherit;padding:1px 8px;cursor:pointer}
+#time-bars{display:flex;align-items:flex-end;gap:2px;height:96px;margin-top:8px}
+#time-bars button{flex:1;min-width:0;height:100%;padding:0 0 16px;border:0;background:none;position:relative;display:flex;align-items:flex-end;cursor:pointer}
+#time-bars button:disabled{cursor:default}
+#time-bars i{display:block;width:100%;background:#8a8a8a}
+#time-bars button:hover i{background:#ccc}
+#time-bars button.on i{background:#ff3b2f}
+#time-bars span{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:10px;color:#888}
 </style></head><body>
 <div id="map"></div>
 <div id="info"><b>Расстрелы в Москве, 1921–1953</b><br><span id="cnt">Загрузка…</span><br><span id="tl" class="m"></span><br>
 <span class="m">Точка — дом, размер — число расстрелянных жильцов. Клик — список людей. Источник: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский.</span></div>
+<div id="time"><div id="time-panel" hidden><div id="time-head"></div><div id="time-bars"></div></div><button id="time-btn" hidden>Таймлайн</button></div>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="map.js"></script>
 </body></html>

@@ -155,29 +155,34 @@ function dotStyle(n) {
   const k = Math.min(1, Math.pow(2, (map.getZoom() - 16) * 0.5));
   return { radius: Math.max(1.1, (3 + Math.sqrt(n) * 2.2) * k), weight: k > 0.6 ? 1 : 0, fillOpacity: k > 0.6 ? 0.45 : 0.6 };
 }
-map.on('zoomend', () => dots.forEach(m => m.setStyle(dotStyle(m.n))));
+let pickedYear = 0; // 0 — все годы
+const shown = m => pickedYear ? (m.byYear[pickedYear] || 0) : m.n;
+function redrawDots() {
+  dots.forEach(m => {
+    const n = shown(m);
+    if (!n) { if (map.hasLayer(m)) map.removeLayer(m); return; }
+    m.setStyle(dotStyle(n));
+    if (!map.hasLayer(m)) m.addTo(map);
+  });
+}
+map.on('zoomend', redrawDots);
 
-// Окно дома. Сверху сводка: сколько человек, квартир, какие годы, столбики расстрелов по годам.
+// Окно дома. Сверху сводка: сколько человек, квартир, какие годы.
 // Ниже люди по дате расстрела. У каждого три слоя: имя и годы жизни; кем был; остальное мельче.
 // Человек: [кв, ФИО, год рождения, дата расстрела, место захоронения, биография, место рождения, национальность, партийность, работа]
 const plural = (n, one, few, many) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 10 || b >= 20) ? few : many; };
+const yearOf = s => +(/(\d{4})$/.exec(s || '') || [])[1] || 0;
 const dateKey = s => { const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s || ''); return m ? +m[3] * 10000 + +m[2] * 100 + +m[1] : 99999999; };
 function popupHtml(addr, people) {
   const ppl = people.slice().sort((a, b) => dateKey(a[3]) - dateKey(b[3]));
   const inApt = {}; ppl.forEach(p => { if (p[0]) inApt[p[0]] = (inApt[p[0]] || 0) + 1; });
   const apts = Object.keys(inApt).length;
-  const years = ppl.map(p => +(/(\d{4})$/.exec(p[3]) || [])[1]).filter(Boolean), cnt = {};
-  years.forEach(y => cnt[y] = (cnt[y] || 0) + 1);
-  const y0 = Math.min(...years), y1 = Math.max(...years), top = Math.max(...Object.values(cnt));
+  const years = ppl.map(p => yearOf(p[3])).filter(Boolean);
+  const y0 = Math.min(...years), y1 = Math.max(...years);
   let sum = ppl.length + ' ' + plural(ppl.length, 'человек', 'человека', 'человек');
   if (apts) sum += ' · ' + apts + ' ' + plural(apts, 'квартира', 'квартиры', 'квартир');
   if (years.length) sum += ' · ' + (y0 === y1 ? y0 : y0 + '–' + y1);
-  let bars = '';
-  if (years.length && y1 > y0) {
-    for (let y = y0; y <= y1; y++) bars += '<i' + (cnt[y] ? ' style="height:' + Math.max(8, Math.round(cnt[y] / top * 100)) + '%" title="' + y + ': ' + cnt[y] + '"' : ' class="z"') + '></i>';
-    bars = '<div class="yrs">' + bars + '</div><div class="ax"><span>' + y0 + '</span><span>расстрелов по годам</span><span>' + y1 + '</span></div>';
-  }
-  return '<div class="pp"><h3>' + esc(addr) + '</h3><div class="sum">' + sum + '</div>' + bars +
+  return '<div class="pp"><h3>' + esc(addr) + '</h3><div class="sum">' + sum + '</div>' +
     ppl.map(([apt, name, by, ex, bur, bio, born, nat, party, job]) => {
       const rest = [
         apt ? 'кв. ' + esc(apt) + (inApt[apt] > 1 ? ' (в этой квартире расстреляно ' + inApt[apt] + ')' : '') : '',
@@ -190,14 +195,50 @@ function popupHtml(addr, people) {
 }
 fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   let people = 0;
+  const cnt = document.getElementById('cnt');
   D.forEach(([lat, lon, addr, ppl]) => {
     people += ppl.length;
     const m = L.circleMarker([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
-    m.n = ppl.length; dots.push(m);
+    m.n = ppl.length; m.byYear = {}; dots.push(m);
+    ppl.forEach(q => { const y = yearOf(q[3]); if (y) m.byYear[y] = (m.byYear[y] || 0) + 1; });
     m.bindPopup(() => popupHtml(addr, ppl), { maxWidth: 360 });
     m.addTo(map);
   });
-  document.getElementById('cnt').textContent = D.length.toLocaleString('ru') + ' домов, ' + people.toLocaleString('ru') + ' человек (из 11 789: у остальных нет координат)';
+  const fmt = n => n.toLocaleString('ru');
+  const total = fmt(D.length) + ' ' + plural(D.length, 'дом', 'дома', 'домов') + ', ' + fmt(people) + ' ' + plural(people, 'человек', 'человека', 'человек');
+  cnt.textContent = total + ' (из 11 789: у остальных нет координат)';
+
+  // ---------- общий таймлайн: расстрелы по годам; нажатие на год оставляет на карте только его ----------
+  const byYear = {}, housesIn = {};
+  dots.forEach(m => Object.keys(m.byYear).forEach(y => { byYear[y] = (byYear[y] || 0) + m.byYear[y]; housesIn[y] = (housesIn[y] || 0) + 1; }));
+  const ys = Object.keys(byYear).map(Number), y0 = Math.min(...ys), y1 = Math.max(...ys), top = Math.max(...Object.values(byYear));
+  const bars = document.getElementById('time-bars'), head = document.getElementById('time-head'), panel = document.getElementById('time-panel');
+  function pick(y) {
+    pickedYear = y === pickedYear ? 0 : y;
+    redrawDots();
+    map.closePopup();
+    [...bars.children].forEach(b => b.classList.toggle('on', +b.dataset.y === pickedYear));
+    head.innerHTML = pickedYear
+      ? '<b>' + pickedYear + '</b> — ' + fmt(byYear[pickedYear]) + ' ' + plural(byYear[pickedYear], 'человек', 'человека', 'человек') + ', ' + fmt(housesIn[pickedYear]) + ' ' + plural(housesIn[pickedYear], 'дом', 'дома', 'домов') + ' <button id="time-all">Все годы</button>'
+      : '<b>' + y0 + '–' + y1 + '</b> — расстрелы по годам. Нажмите на год, чтобы оставить на карте только его.';
+    cnt.textContent = pickedYear ? 'Показан ' + pickedYear + ' год: ' + fmt(housesIn[pickedYear]) + ' ' + plural(housesIn[pickedYear], 'дом', 'дома', 'домов') + ', ' + fmt(byYear[pickedYear]) + ' ' + plural(byYear[pickedYear], 'человек', 'человека', 'человек') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
+    const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(pickedYear);
+  }
+  for (let y = y0; y <= y1; y++) {
+    const b = document.createElement('button'), n = byYear[y] || 0;
+    b.dataset.y = y; b.disabled = !n; b.title = y + ': ' + fmt(n);
+    b.innerHTML = '<i style="height:' + (n ? Math.max(3, n / top * 100) : 0) + '%"></i><span>' + (y % 5 === 0 || y === y0 || y === y1 ? y : '') + '</span>';
+    b.onclick = () => pick(y);
+    bars.appendChild(b);
+  }
+  const btn = document.getElementById('time-btn');
+  btn.hidden = false;
+  btn.onclick = () => {
+    panel.hidden = !panel.hidden;
+    btn.textContent = panel.hidden ? 'Таймлайн' : 'Скрыть таймлайн';
+    if (panel.hidden && pickedYear) pick(pickedYear); // закрытый таймлайн не должен незаметно прятать точки
+  };
+  pickedYear = -1; pick(-1); // заполнить заголовок в состоянии «все годы»
 }).catch(e => {
   document.getElementById('cnt').textContent = 'Данные не загрузились: ' + e.message + '. Страницу нужно открывать через веб-сервер, а не как файл.';
 });
