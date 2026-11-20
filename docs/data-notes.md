@@ -39,7 +39,7 @@
 - Карта района Лубянки october29.ru, ранний проект memoryfull.ru, «Последний адрес», «Открытый список» (openlist.wiki).
 
 ## Где лежат сырые данные
-- `D:\GoogleDrive\Projects\Repression` на компьютере Ильи (1,4 ГБ), описание в README.md той папки.
+- На локальном диске автора проекта, вне репозитория (1,4 ГБ), описание в README.md той папки.
 
 ## Подложка и пересборка данных (2026-11-20, сессия оформления)
 - Overpass: `https://overpass-api.de` с этой машины отвечал ошибкой TLS (curl) и 502 (Python); `http://overpass-api.de` отвечает. Зеркала kumi.systems и private.coffee не ответили за 100 с, maps.mail.ru вернул 504.
