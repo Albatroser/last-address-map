@@ -157,15 +157,18 @@ function dotStyle(n) {
 }
 let pickedYear = 0; // 0 — все годы
 const shown = m => pickedYear ? (m.byYear[pickedYear] || 0) : m.n;
-const RED = '#ff3b2f';
-// Выбран год: дома, где в этот год кого-то расстреляли, остаются красными (размер — по числу за этот год
-// и они поверх остальных); все прочие дома остаются на месте, но бледные (размер — по общему числу).
+const RED = '#ff3b2f', GREY = '#8d8f94';
+// Выбран год: дома, где в этот год кого-то расстреляли, — плотные красные с белой обводкой, поверх остальных
+// (размер — по числу за этот год); все прочие дома остаются на месте, но серые (размер — по общему числу).
 function redrawDots() {
   const bright = [];
   dots.forEach(m => {
-    const n = shown(m);
-    if (n) { m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, dotStyle(n))); if (pickedYear) bright.push(m); }
-    else { const st = dotStyle(m.n); m.setStyle({ color: RED, fillColor: RED, radius: st.radius, weight: 0, fillOpacity: 0.22 }); }
+    const n = shown(m), st = dotStyle(pickedYear ? (n || m.n) : n);
+    if (!pickedYear) m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, st));
+    else if (n) { // год выбран, в доме есть расстрелянные в этот год: плотный красный, не мельче 3 px
+      m.setStyle({ color: '#fff', fillColor: RED, opacity: 0.9, weight: 1, fillOpacity: 1, radius: Math.max(3, st.radius) });
+      bright.push(m);
+    } else m.setStyle({ color: GREY, fillColor: GREY, radius: st.radius, weight: 0, fillOpacity: 0.3 }); // остальные — серые
   });
   bright.forEach(m => m.bringToFront());
 }
