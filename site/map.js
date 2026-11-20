@@ -222,21 +222,45 @@ function popupHtml(addr, people) {
         '<div class="job">' + esc(nat ? job : bio) + '</div><div class="m">' + rest + '</div></div>';
     }).join('') + '</div>';
 }
-fetch('data/moscow_points.json').then(r => r.json()).then(D => {
+Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/house_notes.json').then(r => r.json()).catch(() => ({}))]).then(([D, NOTES]) => {
   let people = 0;
   // окно дома не должно уходить под строку поиска; на узком экране оно ещё и уже
   const popupOpts = { maxWidth: Math.min(360, window.innerWidth - 50), autoPanPaddingTopLeft: [10, search.offsetHeight + 24] };
-  const houses = [];
+  const houses = [], partyAll = [0, 0]; // [членов ВКП(б), всего людей] по всей карте
   D.forEach(([lat, lon, addr, ppl]) => {
     people += ppl.length;
     const m = L.circleMarker([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
     m.n = ppl.length; m.byYear = {}; dots.push(m);
+    if (NOTES[addr]) { m.note = NOTES[addr]; m.party = ppl.filter(q => (q[8] || '').startsWith('член ВКП')).length; }
+    ppl.forEach(q => { partyAll[1]++; if ((q[8] || '').startsWith('член ВКП')) partyAll[0]++; });
     ppl.forEach(q => { const y = yearOf(q[3]); if (y) m.byYear[y] = (m.byYear[y] || 0) + 1; });
     m.bindPopup(() => popupHtml(addr, ppl), popupOpts);
     m.addTo(map);
     houses.push({ addr, m, key: ' ' + norm(addr) + ' ' });
   });
   const fmt = n => n.toLocaleString('ru');
+
+  // ---------- справка о доме: показывается сбоку от окна (на узком экране — над окном) для домов из data/house_notes.json ----------
+  // Текст и источники — из файла; числа расстрелянных и членов ВКП(б) считаются здесь из данных.
+  const pct = (a, b) => (a / b * 100).toFixed(1).replace('.', ',') + '%';
+  map.on('popupopen', e => {
+    const box = e.popup.getElement(), m = e.popup._source;
+    box.querySelectorAll('.note').forEach(x => x.remove());
+    if (!m || !m.note) return;
+    const d = document.createElement('aside');
+    d.className = 'note';
+    d.innerHTML = '<h4>' + esc(m.note.title) + '</h4><p>' + esc(m.note.text) + '</p>' +
+      '<p>В базе по этому адресу ' + m.n + ' ' + plural(m.n, 'расстрелянный', 'расстрелянных', 'расстрелянных') + ', из них членов ВКП(б) — ' + m.party + ' (' + pct(m.party, m.n) +
+      '). По всей карте членов ВКП(б) — ' + pct(partyAll[0], partyAll[1]) + '.</p>' +
+      '<p class="src">Источники: ' + m.note.sources.map(([t, u]) => '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(t) + '</a>').join('; ') + '.</p>';
+    L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+    box.appendChild(d);
+    setTimeout(() => { // справка не должна уходить за левый край или под строку поиска
+      const r = d.getBoundingClientRect(), sb = search.getBoundingClientRect();
+      const dx = r.left < 8 ? r.left - 8 : 0, dy = r.top < sb.bottom + 8 && r.left < sb.right ? r.top - sb.bottom - 8 : 0;
+      if (dx || dy) map.panBy([dx, dy]);
+    }, 400);
+  });
 
   // ---------- поиск по адресу: улицы и дома, но только те, что есть на карте ----------
   const q = document.getElementById('q'), hits = document.getElementById('hits');
