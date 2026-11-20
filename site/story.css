@@ -41,6 +41,10 @@ body.story-on #search,body.story-on #time,body.story-on .leaflet-control-contain
 #story .ans>button,#story.center button,#story.sheet button{margin-top:14px;background:none;border:1px solid #777;border-radius:6px;color:#fff;font:inherit;padding:8px 18px;cursor:pointer}
 #story .ans>button:hover,#story.center button:hover,#story.sheet button:hover{border-color:#fff}
 #story button[disabled]{visibility:hidden}
+#story .go{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+#story .go button{margin-top:0}
+#story .go .btn{border:1px solid #ff3b2f;background:#ff3b2f;border-radius:6px;color:#fff;font:inherit;padding:8px 18px;text-decoration:none}
+#story .go .btn:hover{background:#ff5347;border-color:#ff5347}
 #story-skip{position:fixed;z-index:920;top:14px;right:16px;color:#777;font:13px/1 system-ui,sans-serif;cursor:pointer;text-decoration:underline;text-decoration-color:#444;text-underline-offset:3px}
 #story-skip:hover{color:#ccc}
 @media (max-width:759px){
