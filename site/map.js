@@ -224,18 +224,27 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   const byYear = {}, housesIn = {};
   dots.forEach(m => Object.keys(m.byYear).forEach(y => { byYear[y] = (byYear[y] || 0) + m.byYear[y]; housesIn[y] = (housesIn[y] || 0) + 1; }));
   const ys = Object.keys(byYear).map(Number), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const slider = document.getElementById('time-range'), head = document.getElementById('time-head'), panel = document.getElementById('time-panel');
+  const strip = document.getElementById('time-strip'), slider = document.getElementById('time-range'), head = document.getElementById('time-head'), panel = document.getElementById('time-panel');
   const ppl = n => fmt(n) + ' ' + plural(n, 'человек', 'человека', 'человек'), hs = n => fmt(n) + ' ' + plural(n, 'дом', 'дома', 'домов');
   function pick(y) { // y = 0 — все годы
     pickedYear = y;
     redrawDots();
     map.closePopup();
     slider.classList.toggle('idle', !y);
+    [...strip.children].forEach(c => c.classList.toggle('on', +c.dataset.y === y));
     const n = byYear[y] || 0;
-    head.innerHTML = !y ? '<b>' + y0 + '–' + y1 + '</b> — все годы. Двигайте ползунок, чтобы выделить на карте один год.'
+    head.innerHTML = !y ? '<b>' + y0 + '–' + y1 + '</b> — все годы. Чем ярче год на линии, тем больше расстрелянных. Двигайте ползунок, чтобы выделить год на карте.'
       : '<b>' + y + '</b> — ' + (n ? ppl(n) + ', ' + hs(housesIn[y]) : 'в базе нет расстрелянных с известным адресом') + ' <button id="time-all">Все годы</button>';
     cnt.textContent = y ? 'Выделен ' + y + ' год: ' + (n ? hs(housesIn[y]) + ', ' + ppl(n) : 'никого') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
     const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(0);
+  }
+  // линия под ползунком: по клетке на год, яркость — число расстрелянных (сжато логарифмом, иначе видны только 1937–1938)
+  const top = Math.max(...Object.values(byYear));
+  for (let y = y0; y <= y1; y++) {
+    const c = document.createElement('i'), n = byYear[y] || 0;
+    c.dataset.y = y; c.title = y + ': ' + fmt(n);
+    if (n) c.style.background = 'rgba(255,59,47,' + (0.12 + 0.88 * Math.log(1 + n) / Math.log(1 + top)).toFixed(2) + ')';
+    strip.appendChild(c);
   }
   slider.min = y0; slider.max = y1; slider.value = y0;
   slider.oninput = () => pick(+slider.value);
