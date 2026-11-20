@@ -38,15 +38,6 @@ body.story-on #search,body.story-on #time,body.story-on .leaflet-control-contain
 #story .chips button{background:none;border:1px solid #555;border-radius:16px;color:#ccc;font:14px/1.3 system-ui,sans-serif;padding:5px 12px;cursor:pointer;margin:0}
 #story .chips button:hover{border-color:#aaa;color:#fff}
 #story .chips button.on{background:#ff3b2f;border-color:#ff3b2f;color:#fff}
-#story .hits{margin-top:4px;border-radius:6px;overflow:hidden;background:rgba(15,15,15,.95)}
-#story .hits button{display:flex;justify-content:space-between;gap:12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid #2a2a2a;border-radius:0;color:#ddd;font:14px/1.4 system-ui,sans-serif;padding:8px 12px;cursor:pointer;margin:0}
-#story .hits button:first-child{border-top:0}
-#story .hits button:hover{background:#2c2c2c;color:#fff}
-#story .hits span{color:#888;white-space:nowrap}
-#story .hits .none{padding:8px 12px;color:#999;font-size:14px}
-#story .alt{margin-top:10px;font-size:14px;color:#666}
-#story .alt a{color:#aaa;text-decoration:underline;text-decoration-color:#555;text-underline-offset:3px;cursor:pointer}
-#story .alt a:hover{color:#fff}
 #story .ans>button,#story.center button,#story.sheet button{margin-top:14px;background:none;border:1px solid #777;border-radius:6px;color:#fff;font:inherit;padding:8px 18px;cursor:pointer}
 #story .ans>button:hover,#story.center button:hover,#story.sheet button:hover{border-color:#fff}
 #story button[disabled]{visibility:hidden}

@@ -1,5 +1,6 @@
-// Вступление перед свободной картой — «зеркало»: посетитель отвечает на три вопроса о себе
-// (возраст, занятие, где живёт), и после каждого ответа карта показывает расстрелянных с такими же данными.
+// Вступление перед свободной картой — «зеркало»: посетитель отвечает на два вопроса о себе
+// (возраст, занятие), и после каждого ответа карта показывает расстрелянных с такими же данными.
+// Третий вопрос, «Где ты живёшь?», убран по решению Ильи (2026-11-20) как лишний.
 // Кнопок «Дальше» нет: следующий вопрос появляется после ответа. В конце — весь город, оговорки, свободная карта.
 // Все числа считаются из data/moscow_points.json (их загружает map.js); тексты о людях — только поля базы.
 // Проверка: ?map открывает карту сразу, без вступления.
@@ -24,7 +25,6 @@
   const people = n => fmt(n) + ' ' + plural(n, 'человек', 'человека', 'человек');
   const homes = n => fmt(n) + ' ' + plural(n, 'дом', 'дома', 'домов');
   const shotVerb = n => plural(n, 'расстрелян', 'расстреляны', 'расстреляны');
-  const streetOf = addr => addr.split(/,\s*д\./)[0].trim();
 
   // Занятия: широкие блоки, чтобы современный человек нашёл свой («дизайнер» → «Медиа, искусство, дизайн»).
   // Отбор грубый — по словам в поле «кем был» (а если строка биографии не разобрана — по всей строке);
@@ -48,22 +48,12 @@
     ['Не работаю', 'без работы, пенсионеры, домохозяйки', /без определенных занятий|безработн|пенсионер|домохозяйк|домашняя хозяйка|иждивен|инвалид|не работал/],
   ];
 
-  // Камера переставляется через короткое затемнение карты: при плавном полёте на несколько масштабов
-  // холст Leaflet на время растягивается или сжимается в прямоугольник посреди экрана.
-  const cut = go => {
-    veil.style.transitionDuration = '.35s'; veil.classList.remove('clear');
-    setTimeout(() => { if (!story) return; go(); veil.classList.add('clear'); }, 380);
-  };
   const wide = () => window.innerWidth >= 760;
   // вопросы занимают левую часть экрана (на телефоне — верхнюю); карту нужно показывать в оставшейся
   const PAD = () => wide() ? { paddingTopLeft: [box.offsetWidth + 30, 50], paddingBottomRight: [40, 40] }
     : { paddingTopLeft: [24, Math.min(box.offsetHeight, window.innerHeight * 0.62) + 20], paddingBottomRight: [24, 30] };
   // rows — люди, подошедшие под ответы: в окне дома выделены только они; без rows выделены все жильцы
   const light = (list, rows) => { map.closePopup(); story = { lit: new Set(list), big: list.length <= 400, match: rows ? new Set(rows.map(x => x.p)) : null }; redrawDots(); };
-  const showHouses = (list, maxZoom) => {
-    if (!list.length) return;
-    map.fitBounds(L.latLngBounds(list.map(m => m.getLatLng())), Object.assign({ maxZoom, animate: false }, PAD()));
-  };
   // весь город в свободной от вопросов части экрана
   const cityView = () => {
     map.setView(CITY, wide() ? 12 : 11, { animate: false });
@@ -156,7 +146,7 @@
     if (wide()) ageIn.focus();
 
     // ---------- 2. Занятие ----------
-    let jobAns = null, homeBlock = null;
+    let jobAns = null;
     function askJob() {
       jobBlock = block('<div class="q">Кем ты работаешь?</div><div class="chips">' +
         JOBS.map((j, k) => '<button data-k="' + k + '">' + j[0] + '</button>').join('') + '</div><div class="ans"></div>');
@@ -183,67 +173,11 @@
         (S.person ? '<p class="lead">' + 'Один из них:' + '</p>' + card(S.person) : '');
       light(housesOf(rows.length ? rows : S.same), rows.length ? rows : S.same);
       cityView();
-      if (!homeBlock) askHome();
+      const b = document.createElement('button'); b.textContent = 'Показать всех'; b.onclick = pullBack;
+      jobAns.appendChild(b);
     }
 
-    // ---------- 3. Дом ----------
-    function askHome() {
-      homeBlock = block('<label class="q" for="s-home">Где ты живёшь?</label><input id="s-home" type="search" placeholder="Улица в Москве" autocomplete="off"><div class="hits"></div>' +
-        '<p class="alt"><a id="s-geo">Определить, где я сейчас</a> · <a id="s-no">Я не из Москвы</a></p><div class="ans"></div>');
-      const inp = homeBlock.querySelector('input'), hits = homeBlock.querySelector('.hits'), ans = homeBlock.querySelector('.ans');
-      const streets = new Map(); // улица → её дома на карте
-      dots.forEach(m => {
-        const name = streetOf(m.addr);
-        if (!streets.has(name)) streets.set(name, { name, key: ' ' + norm(name) + ' ', list: [], n: 0 });
-        const s = streets.get(name); s.list.push(m); s.n += m.n;
-      });
-      const SKIP = new Set(['улица', 'ул', 'переулок', 'пер', 'проспект', 'пр', 'бульвар', 'площадь', 'пл', 'набережная', 'наб', 'шоссе', 'проезд', 'москва', 'дом', 'д']);
-      const done = html => {
-        hits.textContent = '';
-        ans.innerHTML = html + '<button id="s-city">Показать всех</button>';
-        ans.querySelector('button').onclick = pullBack;
-        setTimeout(() => ans.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
-      };
-      const toHouse = (m, html) => { cut(() => { light([m]); map.setView(m.getLatLng(), 17, { animate: false }); showHouses([m], 17); }); done(html); };
-      inp.oninput = () => {
-        const words = norm(inp.value).split(' ').filter(w => w && !SKIP.has(w) && !/^\d/.test(w));
-        hits.textContent = '';
-        if (!words.length) return;
-        const found = [...streets.values()].filter(s => words.every(w => s.key.includes(' ' + w))).sort((x, y) => y.n - x.n).slice(0, 6);
-        if (!found.length) { hits.innerHTML = '<div class="none">Этой улицы нет среди домов на карте</div>'; return; }
-        found.forEach(s => {
-          const b = document.createElement('button');
-          b.innerHTML = esc(s.name) + ' <span>' + homes(s.list.length) + '</span>';
-          b.onclick = () => {
-            inp.value = s.name;
-            cut(() => { light(s.list); showHouses(s.list, 17); });
-            done('<div class="big">' + fmt(s.n) + '</div><p>' + plural(s.n, 'расстрелянный жил', 'расстрелянных жили', 'расстрелянных жили') + ' на твоей улице.</p>' +
-              '<p class="quiet">' + esc(s.name) + ' · ' + homes(s.list.length) + '. Нажми на любой.</p>');
-          };
-          hits.appendChild(b);
-        });
-      };
-      const notMoscow = lead => {
-        const x = S.person || (S.same.length ? best(S.same) : best(P));
-        toHouse(x.m, (lead || '') + '<p>Вот дом одного из расстрелянных.</p>' + card(x) +
-          '<p class="quiet">Всего по этому адресу ' + shotVerb(x.m.n) + ' ' + people(x.m.n) + '.</p>');
-      };
-      homeBlock.querySelector('#s-no').onclick = () => notMoscow();
-      homeBlock.querySelector('#s-geo').onclick = () => {
-        if (!navigator.geolocation) { ans.innerHTML = '<p class="quiet">Браузер не умеет определять место.</p>'; return; }
-        ans.innerHTML = '<p class="quiet">Определяю…</p>';
-        navigator.geolocation.getCurrentPosition(pos => {
-          const me = L.latLng(pos.coords.latitude, pos.coords.longitude);
-          if (me.distanceTo(CITY) > 50000) return notMoscow('<p class="quiet">Ты далеко от Москвы.</p>');
-          const m = dots.slice().sort((x, y) => me.distanceTo(x.getLatLng()) - me.distanceTo(y.getLatLng()))[0];
-          const d = me.distanceTo(m.getLatLng());
-          toHouse(m, '<div class="big">' + (d < 1000 ? Math.round(d / 10) * 10 + ' м' : (d / 1000).toFixed(1).replace('.', ',') + ' км') + '</div>' +
-            '<p>от тебя до ближайшего дома, где жили расстрелянные.</p><p class="quiet">' + esc(m.addr) + ' · ' + people(m.n) + '</p>');
-        }, () => { ans.innerHTML = '<p class="quiet">Не получилось определить место.</p>'; }, { timeout: 10000 });
-      };
-    }
-
-    // ---------- 4. Весь город: камера отходит шагами, дома в кадре загораются, счётчик растёт ----------
+    // ---------- 3. Весь город: остальные дома загораются, счётчик растёт; если посетитель приблизил карту, камера сначала плавно отходит ----------
     function pullBack() {
       const z0 = map.getZoom(), to = L.latLng(CITY), z1 = wide() ? 12 : 11;
       map.closePopup(); veil.classList.remove('pass'); // отъезд идёт сам, карту в это время трогать нельзя
@@ -365,7 +299,7 @@
       requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(step)));
     }
 
-    // ---------- 5. Оговорки ----------
+    // ---------- 4. Оговорки ----------
     function caveats() {
       veil.style.transitionDuration = ''; veil.classList.remove('clear'); veil.classList.add('dim');
       box.className = 'center';
