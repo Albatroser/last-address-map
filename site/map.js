@@ -293,18 +293,22 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
     b.onmouseenter = () => { active = k; mark(); };
     return b;
   };
-  // Подсказка в пустой строке поиска: с чего можно начать. Улицы — список известных названий, составлен вручную
-  // (показываются только те, что есть в данных); дома — три адреса с наибольшим числом расстрелянных, считаются из данных.
-  const KNOWN = ['Арбат ул.', 'Тверская ул.', 'Чистопрудный б-р', 'Покровка ул.', 'Мясницкая ул.', 'Пречистенка ул.'];
-  const hintStreets = KNOWN.map(n => streets.get(n)).filter(Boolean);
-  const hintHouses = houses.slice().sort((a, b) => b.m.n - a.m.n).slice(0, 3);
+  // Подсказка в пустой строке поиска — одна серая строка «Например: …» с тремя примерами, без списка и чисел.
+  // Две улицы выбраны вручную как известные названия; дом — адрес с наибольшим числом расстрелянных, считается из данных.
+  const egs = ['Арбат ул.', 'Тверская ул.'].map(n => streets.get(n)).filter(Boolean)
+    .concat(houses.slice().sort((a, b) => b.m.n - a.m.n).slice(0, 1));
   function suggest() {
-    hits.textContent = ''; found = hintStreets.concat(hintHouses); active = -1;
-    const head = t => { const d = document.createElement('div'); d.className = 'head'; d.textContent = t; hits.appendChild(d); };
-    if (hintStreets.length) head('Можно начать с улицы');
-    hintStreets.forEach((x, k) => hits.appendChild(row(x, k)));
-    head('Или с дома, где расстрелянных больше всего');
-    hintHouses.forEach((x, k) => hits.appendChild(row(x, hintStreets.length + k)));
+    hits.textContent = ''; found = []; active = -1;
+    const d = document.createElement('div'); d.className = 'eg'; d.append('Например: ');
+    egs.forEach((x, k) => {
+      const b = document.createElement('a');
+      b.textContent = x.street ? x.street.replace(/ ул\.$/, '') : x.addr.replace(/ ул\., д\./, ', ');
+      b.onmousedown = e => e.preventDefault(); // чтобы строка поиска не теряла фокус раньше нажатия
+      b.onclick = () => go(x);
+      if (k) d.append(', ');
+      d.append(b);
+    });
+    hits.appendChild(d);
   }
   q.oninput = () => {
     found = find(q.value); active = 0;
