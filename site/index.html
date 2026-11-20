@@ -29,10 +29,12 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 #time-panel{background:rgba(15,15,15,.9);border-radius:6px;padding:10px 12px 6px;margin-bottom:8px}
 #time-head b{color:#fff}
 #time-head button{margin-left:8px;background:none;border:1px solid #666;border-radius:4px;color:#ddd;font:inherit;padding:1px 8px;cursor:pointer}
-#time-bars{display:flex;align-items:flex-end;gap:2px;height:96px;margin-top:8px}
+#time-bars{display:flex;align-items:flex-end;gap:2px;height:124px;margin-top:8px;padding-top:28px;box-sizing:border-box}
 #time-bars button{flex:1;min-width:0;height:100%;padding:0 0 16px;border:0;background:none;position:relative;display:flex;align-items:flex-end;cursor:pointer}
 #time-bars button:disabled{cursor:default}
-#time-bars i{display:block;width:100%;background:#8a8a8a}
+#time-bars i{display:block;width:100%;background:#8a8a8a;position:relative}
+#time-bars em{position:absolute;left:50%;bottom:100%;font:10px/1 system-ui,sans-serif;font-style:normal;color:#bbb;white-space:nowrap;transform-origin:0 50%;transform:translateY(-3px) rotate(-90deg);font-variant-numeric:tabular-nums}
+#time-bars button.on em{color:#fff}
 #time-bars button:hover i{background:#ccc}
 #time-bars button.on i{background:#ff3b2f}
 #time-bars span{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:10px;color:#888}

@@ -232,14 +232,16 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
     [...bars.children].forEach(b => b.classList.toggle('on', +b.dataset.y === pickedYear));
     head.innerHTML = pickedYear
       ? '<b>' + pickedYear + '</b> — ' + fmt(byYear[pickedYear]) + ' ' + plural(byYear[pickedYear], 'человек', 'человека', 'человек') + ', ' + fmt(housesIn[pickedYear]) + ' ' + plural(housesIn[pickedYear], 'дом', 'дома', 'домов') + ' <button id="time-all">Все годы</button>'
-      : '<b>' + y0 + '–' + y1 + '</b> — расстрелы по годам. Нажмите на год, чтобы выделить его на карте.';
+      : '<b>' + y0 + '–' + y1 + '</b> — расстрелы по годам. Над столбиком точное число; высота сжата, чтобы был виден каждый год. Нажмите на год, чтобы выделить его на карте.';
     cnt.textContent = pickedYear ? 'Выделен ' + pickedYear + ' год: ' + fmt(housesIn[pickedYear]) + ' ' + plural(housesIn[pickedYear], 'дом', 'дома', 'домов') + ', ' + fmt(byYear[pickedYear]) + ' ' + plural(byYear[pickedYear], 'человек', 'человека', 'человек') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
     const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(pickedYear);
   }
   for (let y = y0; y <= y1; y++) {
     const b = document.createElement('button'), n = byYear[y] || 0;
     b.dataset.y = y; b.disabled = !n; b.title = y + ': ' + fmt(n);
-    b.innerHTML = '<i style="height:' + (n ? Math.max(3, n / top * 100) : 0) + '%"></i><span>' + (y % 5 === 0 || y === y0 || y === y1 ? y : '') + '</span>';
+    // высота сжата логарифмом, иначе рядом с 1937–1938 остальные годы не видны; точное число стоит над столбиком
+    const h = n ? Math.max(6, Math.log(1 + n) / Math.log(1 + top) * 100) : 0;
+    b.innerHTML = '<i style="height:' + h.toFixed(1) + '%">' + (n ? '<em>' + n + '</em>' : '') + '</i><span>' + (y % 5 === 0 || y === y0 || y === y1 ? y : '') + '</span>';
     b.onclick = () => pick(y);
     bars.appendChild(b);
   }
