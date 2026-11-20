@@ -157,13 +157,17 @@ function dotStyle(n) {
 }
 let pickedYear = 0; // 0 — все годы
 const shown = m => pickedYear ? (m.byYear[pickedYear] || 0) : m.n;
+const RED = '#ff3b2f';
+// Выбран год: дома, где в этот год кого-то расстреляли, остаются красными (размер — по числу за этот год
+// и они поверх остальных); все прочие дома остаются на месте, но бледные (размер — по общему числу).
 function redrawDots() {
+  const bright = [];
   dots.forEach(m => {
     const n = shown(m);
-    if (!n) { if (map.hasLayer(m)) map.removeLayer(m); return; }
-    m.setStyle(dotStyle(n));
-    if (!map.hasLayer(m)) m.addTo(map);
+    if (n) { m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, dotStyle(n))); if (pickedYear) bright.push(m); }
+    else { const st = dotStyle(m.n); m.setStyle({ color: RED, fillColor: RED, radius: st.radius, weight: 0, fillOpacity: 0.22 }); }
   });
+  bright.forEach(m => m.bringToFront());
 }
 map.on('zoomend', redrawDots);
 
@@ -216,7 +220,7 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
   const total = fmt(D.length) + ' ' + plural(D.length, 'дом', 'дома', 'домов') + ', ' + fmt(people) + ' ' + plural(people, 'человек', 'человека', 'человек');
   cnt.textContent = total + ' (из 11 789: у остальных нет координат)';
 
-  // ---------- общий таймлайн: расстрелы по годам; нажатие на год оставляет на карте только его ----------
+  // ---------- общий таймлайн: расстрелы по годам; нажатие на год выделяет его на карте, остальные дома бледнеют ----------
   const byYear = {}, housesIn = {};
   dots.forEach(m => Object.keys(m.byYear).forEach(y => { byYear[y] = (byYear[y] || 0) + m.byYear[y]; housesIn[y] = (housesIn[y] || 0) + 1; }));
   const ys = Object.keys(byYear).map(Number), y0 = Math.min(...ys), y1 = Math.max(...ys), top = Math.max(...Object.values(byYear));
@@ -228,8 +232,8 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
     [...bars.children].forEach(b => b.classList.toggle('on', +b.dataset.y === pickedYear));
     head.innerHTML = pickedYear
       ? '<b>' + pickedYear + '</b> — ' + fmt(byYear[pickedYear]) + ' ' + plural(byYear[pickedYear], 'человек', 'человека', 'человек') + ', ' + fmt(housesIn[pickedYear]) + ' ' + plural(housesIn[pickedYear], 'дом', 'дома', 'домов') + ' <button id="time-all">Все годы</button>'
-      : '<b>' + y0 + '–' + y1 + '</b> — расстрелы по годам. Нажмите на год, чтобы оставить на карте только его.';
-    cnt.textContent = pickedYear ? 'Показан ' + pickedYear + ' год: ' + fmt(housesIn[pickedYear]) + ' ' + plural(housesIn[pickedYear], 'дом', 'дома', 'домов') + ', ' + fmt(byYear[pickedYear]) + ' ' + plural(byYear[pickedYear], 'человек', 'человека', 'человек') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
+      : '<b>' + y0 + '–' + y1 + '</b> — расстрелы по годам. Нажмите на год, чтобы выделить его на карте.';
+    cnt.textContent = pickedYear ? 'Выделен ' + pickedYear + ' год: ' + fmt(housesIn[pickedYear]) + ' ' + plural(housesIn[pickedYear], 'дом', 'дома', 'домов') + ', ' + fmt(byYear[pickedYear]) + ' ' + plural(byYear[pickedYear], 'человек', 'человека', 'человек') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
     const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(pickedYear);
   }
   for (let y = y0; y <= y1; y++) {
