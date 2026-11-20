@@ -7,6 +7,8 @@
 Поля 6–9 получены разбором строки 5 и заполнены, только если строка разобралась целиком;
 иначе они пустые, а показывать нужно строку 5.
 
+Координаты берутся из addresses_geocoded.csv; отдельные адреса исправлены вручную в data/moscow/coord_overrides.csv.
+
 Запуск из корня репозитория: python scripts/build_moscow_points.py
 """
 import csv
@@ -64,6 +66,8 @@ def main():
     for g in gk:
         if g["latitude"] and g["longitude"]:
             coords.setdefault(norm(g["street"]) + "|" + norm(g["house"]), (float(g["latitude"]), float(g["longitude"])))
+    # ручные поправки координат: адрес как в addresses.csv -> (широта, долгота); источник и причина — в самом файле
+    fixes = {r["address"]: (float(r["latitude"]), float(r["longitude"])) for r in rows("coord_overrides.csv")}
     by_addr = defaultdict(list)
     for p in pe:
         by_addr[p["ADDRESS_ID"]].append(p)
@@ -76,14 +80,14 @@ def main():
         ppl = [person(p) for p in by_addr[a["ADDRESS_ID"]]]
         total += len(ppl)
         parsed += sum(1 for x in ppl if x[7])
-        lat, lon = coords[key]
+        lat, lon = fixes.get(a["ADDRESS"], coords[key])
         out.append([round(lat, 5), round(lon, 5), a["ADDRESS"], ppl])
     dst = R / "site" / "data" / "moscow_points.json"
     dst.parent.mkdir(parents=True, exist_ok=True)
     with open(dst, "w", encoding="utf-8", newline="\n") as f:
         f.write("[\n" + ",\n".join(json.dumps(x, ensure_ascii=False, separators=(",", ":")) for x in out) + "\n]\n")
     print("домов:", len(out), "| людей:", total, "из", len(pe), "| адресов без координат:", missing,
-          "| биография разобрана по полям:", parsed, f"({parsed / total * 100:.1f}%)")
+          "| координаты исправлены вручную:", len(fixes), "| биография разобрана по полям:", parsed, f"({parsed / total * 100:.1f}%)")
 
 
 if __name__ == "__main__":
