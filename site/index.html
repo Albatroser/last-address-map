@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Расстрелы в Москве — черновая карта</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<style>
+html,body,#map{margin:0;height:100%;background:#111}
+#info{position:absolute;z-index:1000;top:12px;left:56px;background:rgba(15,15,15,.85);color:#ddd;font:13px/1.4 system-ui,sans-serif;padding:10px 14px;border-radius:6px;max-width:340px}
+#info b{color:#fff;font-size:15px}
+#info .m{color:#999}
+.leaflet-popup-content-wrapper{background:#1b1b1b;color:#ddd;border-radius:6px}
+.leaflet-popup-tip{background:#1b1b1b}
+.leaflet-popup-content{font:12.5px/1.45 system-ui,sans-serif;max-height:340px;overflow:auto;margin:12px 14px;width:320px!important}
+.pp h3{margin:0 0 6px;color:#fff;font-size:14px}
+.pp .p{border-top:1px solid #333;padding:6px 0}
+.pp .n{color:#ff6b5b;font-weight:600}
+.pp .m{color:#999}
+</style></head><body>
+<div id="map"></div>
+<div id="info"><b>Расстрелы в Москве, 1921–1953</b><br><span id="cnt">Загрузка…</span><br><span id="tl" class="m"></span><br>
+<span class="m">Точка — дом, размер — число расстрелянных жильцов. Клик — список людей. Источник: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский.</span></div>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="map.js"></script>
+</body></html>
