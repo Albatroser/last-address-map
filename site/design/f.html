@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Вариант Е — куда увезли · прототип оформления</title>
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="card.css">
+<style>
+/* Вариант Е. От каждого дома — прямая линия к месту захоронения. Линии уходят за край карты. */
+:root{--bg:#0e0f11;--ink:#ece8de;--soft:#86847e;--mid:#c6c2b8;--card:#141518;--rule:#2c2e33;--street:#4a4c51;--acc:#ff5a2b}
+#sites{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:12px;line-height:1.4;font-variant-numeric:tabular-nums;max-width:520px}
+#sites i{display:inline-block;font-style:normal;width:12px;text-align:center;margin-right:3px}
+#sites span{color:var(--soft)}
+</style></head><body>
+<div id="map"></div>
+<header id="top">
+  <h1 class="t">Арбат и окрестности</h1>
+  <div class="c" id="cnt">Загрузка…</div>
+  <div class="l">Линия идёт от дома к месту, где человек захоронен. Чем больше людей, тем она толще. Стрелки показывают направление.</div>
+  <div id="sites"></div>
+  <nav><a href="d.html">Г</a><a href="e.html">Д</a><a class="on" href="f.html">Е</a></nav>
+</header>
+<aside id="sheet" aria-hidden="true"><button id="x" aria-label="Закрыть">×</button><div id="card"></div></aside>
+<div id="src">Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский. Дома и улицы: © участники OpenStreetMap. Координаты мест захоронения приблизительные, не проверено.</div>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="common.js"></script>
+<script>
+// Координаты мест захоронения поставлены приблизительно, по памяти, и не сверены с источником (не проверено).
+// От них зависит только направление линий.
+const SITES = {
+  'Бутово': [55.533, 37.595],
+  'Коммунарка': [55.579, 37.464],
+  'Донское': [55.713, 37.602],
+  'Ваганьковское кладбище': [55.768, 37.549],
+  'Яузская больница': [55.749, 37.654],
+};
+Proto.load().then(data => {
+  const map = Proto.makeMap(data.base);
+  const idle = () => ({ color: '#1c1e22', fillColor: '#16181b', weight: 0.6 });
+  Proto.drawBase(map, data.base, { green: { fillColor: '#0f1110' }, street: { a: '#0a0b0c', b: '#0a0b0c', p: '#0a0b0c' }, building: idle });
+  const lines = Proto.streetLines(data.base), lab = Proto.Labeler(map);
+  const LINE = '#ece8de', ACC = '#ff5a2b', total = {};
+  let other = 0;
+  data.houses.forEach(h => {
+    const by = {};
+    h.people.forEach(p => { if (SITES[p.burial]) { by[p.burial] = (by[p.burial] || 0) + 1; total[p.burial] = (total[p.burial] || 0) + 1; } else other++; });
+    h.rays = Object.keys(by).map(k => L.polyline([[h.lat, h.lon], SITES[k]], { color: LINE, weight: 0.5 + 0.55 * Math.sqrt(by[k]), opacity: 0.3, interactive: false }).addTo(map));
+    h.w = h.rays.map(r => r.options.weight);
+    h.dot = L.circleMarker([h.lat, h.lon], { radius: 1.8, stroke: false, fillColor: LINE, fillOpacity: 1, interactive: false }).addTo(map);
+  });
+  // легенда: сколько людей из этого квартала захоронено в каждом месте и в какой оно стороне
+  const c = map.project(map.getCenter(), 12);
+  document.getElementById('sites').innerHTML = Object.keys(total).sort((a, b) => total[b] - total[a]).map(k => {
+    const p = map.project(SITES[k], 12), a = Math.atan2(p.x - c.x, c.y - p.y) * 180 / Math.PI;
+    return '<div><i style="transform:rotate(' + a.toFixed(0) + 'deg)">↑</i>' + Proto.esc(k) + ' <span>' + Proto.fmt(total[k]) + '</span></div>';
+  }).join('') + (other ? '<div><span>место не указано или иное: ' + other + '</span></div>' : '');
+
+  const draw = () => { lab.begin(); if (map.getZoom() >= 16) lab.streets(lines, '10px Helvetica, Arial, sans-serif', 'st', 12); };
+  Proto.selection({
+    data, map,
+    onSelect(h, prev) {
+      if (prev) { prev.rays.forEach((r, i) => r.setStyle({ color: LINE, opacity: 0.3, weight: prev.w[i] })); prev.dot.setStyle({ fillColor: LINE, radius: 1.8 }); }
+      if (h) { h.rays.forEach((r, i) => { r.setStyle({ color: ACC, opacity: 1, weight: h.w[i] + 1 }); r.bringToFront(); }); h.dot.setStyle({ fillColor: ACC, radius: 4 }); h.dot.bringToFront(); }
+    },
+    render: h => Proto.card(h, data),
+  });
+  map.on('moveend zoomend', draw);
+  draw();
+  Proto.header(data);
+}).catch(Proto.fail);
+</script>
+</body></html>

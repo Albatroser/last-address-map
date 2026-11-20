@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Расстрелы в Москве — исходный дизайн, новая подложка</title>
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<style>
+/* Исходный дизайн из site/index.html без изменений: точки, плашка, попап. Заменена только подложка:
+   вместо тайлов Esri — контуры домов и улицы из arbat_base.json (пока есть только для района Арбата). */
+html,body,#map{margin:0;height:100%;background:#0e0f11}
+.leaflet-container{background:#0e0f11}
+#info{position:absolute;z-index:1000;top:12px;left:56px;background:rgba(15,15,15,.85);color:#ddd;font:13px/1.4 system-ui,sans-serif;padding:10px 14px;border-radius:6px;max-width:340px}
+#info b{color:#fff;font-size:15px}
+#info .m{color:#999}
+.leaflet-popup-content-wrapper{background:#1b1b1b;color:#ddd;border-radius:6px}
+.leaflet-popup-tip{background:#1b1b1b}
+.leaflet-popup-content{font:12.5px/1.45 system-ui,sans-serif;max-height:340px;overflow:auto;margin:12px 14px;width:320px!important}
+.pp h3{margin:0 0 6px;color:#fff;font-size:14px}
+.pp .p{border-top:1px solid #333;padding:6px 0}
+.pp .n{color:#ff6b5b;font-weight:600}
+.pp .m{color:#999}
+.lb{pointer-events:none;user-select:none}
+.lb.st{font:10px/12px system-ui,sans-serif;color:#5a5c62;letter-spacing:.08em;text-transform:uppercase}
+</style></head><body>
+<div id="map"></div>
+<div id="info"><b>Расстрелы в Москве, 1921–1953</b><br><span id="cnt">Загрузка…</span><br>
+<span class="m">Точка — дом, размер — число расстрелянных жильцов. Клик — список людей. Источник: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский. Дома и улицы: © участники OpenStreetMap, современные контуры; пока только район Арбата.</span></div>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="common.js"></script>
+<script>
+const map = L.map('map', { preferCanvas: true, maxZoom: 19 }).setView([55.7497, 37.5915], 16);
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+Promise.all([fetch('arbat_base.json').then(r => r.json()), fetch('../data/moscow_points.json').then(r => r.json())]).then(([base, D]) => {
+  // подложка: дома и улицы
+  Proto.drawBase(map, base, { green: { fillColor: '#0f1110' }, street: { a: '#0a0b0c', b: '#0a0b0c', p: '#0a0b0c' }, building: () => ({ color: '#24262b', fillColor: '#1b1d21', weight: 0.6 }) });
+  const lines = Proto.streetLines(base), lab = Proto.Labeler(map);
+  const labels = () => { lab.begin(); if (map.getZoom() >= 16) lab.streets(lines, '10px system-ui, sans-serif', 'st', 12); };
+  map.on('moveend zoomend', labels); labels();
+
+  // точки и попап — как в site/map.js
+  let people = 0;
+  D.forEach(([lat, lon, addr, ppl]) => {
+    people += ppl.length;
+    const m = L.circleMarker([lat, lon], { radius: 3 + Math.sqrt(ppl.length) * 2.2, color: '#ff3b2f', weight: 1, fillColor: '#ff3b2f', fillOpacity: .45 });
+    m.bindPopup(() => '<div class="pp"><h3>' + esc(addr) + ' — ' + ppl.length + ' чел.</h3>' +
+      ppl.map(([apt, name, by, ex, bur, job]) => '<div class="p"><span class="n">' + esc(name) + '</span>' + (by ? ', ' + by + ' г.р.' : '') +
+        '<br>кв. ' + esc(apt) + ' · расстрелян(а) ' + esc(ex) + (bur ? ' · ' + esc(bur) : '') + '<br><span class="m">' + esc(job) + '</span></div>').join('') + '</div>', { maxWidth: 360 });
+    m.addTo(map);
+  });
+  document.getElementById('cnt').textContent = D.length.toLocaleString('ru') + ' домов, ' + people.toLocaleString('ru') + ' человек (из 11 789: у остальных нет координат)';
+}).catch(e => {
+  document.getElementById('cnt').textContent = 'Данные не загрузились: ' + e.message + '. Страницу нужно открывать через веб-сервер, а не как файл.';
+});
+</script>
+</body></html>
