@@ -158,7 +158,7 @@ function dotStyle(n) {
 let pickedYear = 0; // 0 — все годы
 const shown = m => pickedYear ? (m.byYear[pickedYear] || 0) : m.n;
 const RED = '#ff3b2f', GREY = '#8d8f94';
-// Выбран год: дома, где в этот год кого-то расстреляли, — плотные красные с белой обводкой, поверх остальных
+// Выбран год: дома, где в этот год кого-то расстреляли, — плотные красные без обводки, поверх остальных
 // (размер — по числу за этот год); все прочие дома остаются на месте, но серые (размер — по общему числу).
 function redrawDots() {
   const bright = [];
@@ -166,7 +166,7 @@ function redrawDots() {
     const n = shown(m), st = dotStyle(pickedYear ? (n || m.n) : n);
     if (!pickedYear) m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, st));
     else if (n) { // год выбран, в доме есть расстрелянные в этот год: плотный красный, не мельче 3 px
-      m.setStyle({ color: '#fff', fillColor: RED, opacity: 0.9, weight: 1, fillOpacity: 1, radius: Math.max(3, st.radius) });
+      m.setStyle({ color: RED, fillColor: RED, weight: 0, fillOpacity: 1, radius: Math.max(3, st.radius) });
       bright.push(m);
     } else m.setStyle({ color: GREY, fillColor: GREY, radius: st.radius, weight: 0, fillOpacity: 0.3 }); // остальные — серые
   });
@@ -241,12 +241,12 @@ fetch('data/moscow_points.json').then(r => r.json()).then(D => {
     cnt.textContent = y ? 'Выделен ' + y + ' год: ' + (n ? hs(housesIn[y]) + ', ' + ppl(n) : 'никого') + ' (всего ' + total + ')' : total + ' (из 11 789: у остальных нет координат)';
     const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(0);
   }
-  // линия под ползунком: по клетке на год, яркость — число расстрелянных (сжато логарифмом, иначе видны только 1937–1938)
+  // линия под ползунком: по клетке на год, яркость — число расстрелянных; цвет нейтральный, чтобы не путать с красными точками (сжато логарифмом, иначе видны только 1937–1938)
   const top = Math.max(...Object.values(byYear));
   for (let y = y0; y <= y1; y++) {
     const c = document.createElement('i'), n = byYear[y] || 0;
     c.dataset.y = y; c.title = y + ': ' + fmt(n);
-    if (n) c.style.background = 'rgba(255,59,47,' + (0.12 + 0.88 * Math.log(1 + n) / Math.log(1 + top)).toFixed(2) + ')';
+    if (n) c.style.background = 'rgba(236,232,222,' + (0.10 + 0.90 * Math.log(1 + n) / Math.log(1 + top)).toFixed(2) + ')';
     strip.appendChild(c);
   }
   slider.min = y0; slider.max = y1; slider.value = y0;
