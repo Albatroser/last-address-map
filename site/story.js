@@ -960,8 +960,8 @@
       const bl = act === city ? 'city' : true; if (story.blood !== bl) { story.blood = bl; redrawDots(); }
       for (; litN < want; litN++) { const m = order[litN]; story.lit.add(m); people += m.n; m.options.interactive = true; m.setStyle(storyStyle(m)); }
       for (; litN > want; litN--) { const m = order[litN - 1]; story.lit.delete(m); people -= m.n; m.options.interactive = false; m.setStyle(storyStyle(m)); }
-      nEl.textContent = fmt(people);
-      lEl.textContent = plural(people, 'человек', 'человека', 'человек') + (litN === order.length ? ' · ' + fmt(order.length) + ' ' + plural(order.length, 'дом', 'дома', 'домов') : '');
+      nEl.textContent = I18N.num(fmt(people)); // I18N: слова по числу и запись числа — на языке страницы
+      lEl.textContent = I18N.tp(people, 'человек', 'человека', 'человек') + (litN === order.length ? ' · ' + I18N.num(fmt(order.length)) + ' ' + I18N.tp(order.length, 'дом', 'дома', 'домов') : '');
     };
     // пересчёт — на ближайшем кадре; если кадров нет (вкладка в фоне), то по таймеру
     const ask = () => { if (queued) return; queued = true; requestAnimationFrame(() => { if (queued) update(); }); setTimeout(() => { if (queued) update(); }, 150); };

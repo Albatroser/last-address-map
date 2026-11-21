@@ -13,8 +13,8 @@
 //      • если для блока целиком перевода нет, переводится каждый его кусок текста отдельно;
 //      • элементы страницы не пересоздаются (меняется только текст), поэтому обработчики и ссылки живы;
 //      • за новым текстом следит MutationObserver: окна, подписи и счётчики переводятся по мере появления.
-// Чего перевод не касается. Записи базы — место работы, место рождения, биография — остаются по-русски, как в источнике:
-// это тысячи свободных записей о реальных людях, и переводить их автоматически значило бы их искажать. Переведены только поля
+// Чего перевод не касается. Записи базы — место работы, место рождения, биография — на других языках пока не показываются
+// (в русской версии они есть): это тысячи свободных записей о реальных людях, их перевод — отдельная работа. Переведены только поля
 // с закрытым списком значений (место захоронения, национальность, партийность, орган, вынесший приговор) и записи тех людей,
 // которые названы на слайдах. Обвинение в окне дома на других языках показано названием группы (как на слайде об обвинениях).
 // Имена, адреса и названия улиц переданы латиницей. Названия источников не переводятся.
@@ -82,8 +82,14 @@ const I18N = (() => {
     if (r !== undefined) { n.data = a + fill(r, nums) + z; return true; }
     if (n.parentElement && n.parentElement.closest('a[href^="http"], .src')) return true;
     if (nameCtx(n) || addrLike(m[2])) { n.data = translit(n.data); return true; }
-    if (!n.parentElement || !n.parentElement.closest('.pp, .born-list, .row, .line, .job')) MISS[k] = 1; // записи базы остаются по-русски и пропуском не считаются
-    return false; };
+    // Запись базы без перевода (работа, место рождения) на других языках не показывается (решение Ильи 2026-11-21):
+    // от строки «годы · запись» остаются годы, пустая строка и строка «подпись: запись» скрываются целиком.
+    const p = n.parentElement, data = p && p.closest('.pp, .born-list, .row, .line, .job, .ans');
+    if (!data) { MISS[k] = 1; return false; }
+    const cut = /^(.*\d)\s*·\s*[^·]*$/.exec(n.data);
+    n.data = cut ? cut[1] : '';
+    if (!n.data.trim()) { if (/(^| )row( |$)/.test(p.className || '') || (p.tagName === 'SPAN' && !p.textContent.trim())) (p.tagName === 'SPAN' ? p : p).style.display = 'none'; else if (p.tagName === 'P' && !p.textContent.trim()) p.style.display = 'none'; else if (n.previousSibling && n.previousSibling.nodeName === 'BR') n.previousSibling.remove(); }
+    return true; };
   const done = new WeakMap();
   const unit = u => {
     if (u.nodeType === 3) { if (done.get(u) !== u.data) { seg(u); done.set(u, u.data); } return; }
@@ -97,12 +103,15 @@ const I18N = (() => {
   };
   const ATTRS = ['placeholder', 'aria-label', 'title'];
   const attrs = el => ATTRS.forEach(a => { const val = el.getAttribute && el.getAttribute(a); if (val && CYR.test(val)) { const r = get('@' + val); if (r !== undefined) el.setAttribute(a, r); else MISS['@' + val] = 1; } });
+  // числа в подписях и крупных цифрах, где слов нет: по-английски тысячи отделяются запятой
+  const THOU = /(\d)[  ](?=\d{3}(?!\d))/g, numFix = n => { if (lang === 'en' && /\d[  ]\d{3}/.test(n.data) && !(n.parentElement && n.parentElement.closest('[data-noi18n]'))) n.data = n.data.replace(THOU, '$1,'); };
   const scan = root => {
-    if (root.nodeType === 3) { if (CYR.test(root.data)) { const u = unitOf(root); if (u) unit(u); } return; }
+    if (root.nodeType === 3) { if (CYR.test(root.data)) { const u = unitOf(root); if (u) unit(u); } else numFix(root); return; }
     if (root.nodeType !== 1 || SKIP.has(root.tagName)) return;
     attrs(root); root.querySelectorAll('[placeholder],[aria-label],[title]').forEach(attrs);
-    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), set = new Set();
-    while (w.nextNode()) { const n = w.currentNode; if (CYR.test(n.data) && !(n.parentElement && SKIP.has(n.parentElement.tagName))) { const u = unitOf(n); if (u) set.add(u); } }
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), set = new Set(), nums = [];
+    while (w.nextNode()) { const n = w.currentNode; if (n.parentElement && SKIP.has(n.parentElement.tagName)) continue; if (CYR.test(n.data)) { const u = unitOf(n); if (u) set.add(u); } else nums.push(n); }
+    nums.forEach(numFix);
     set.forEach(unit);
   };
   const start = () => {

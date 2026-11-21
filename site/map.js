@@ -6,6 +6,9 @@ const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', 
 // Языки (i18n.js): T — строка из словаря, TP — слово по числу, TV — значение поля базы, TL — латиница для имён и адресов.
 // По-русски все четыре возвращают текст как есть.
 const T = I18N.t, TP = I18N.tp, TV = I18N.v, TL = I18N.tl, RU = I18N.ru;
+// TO — значение поля базы только если оно переведено: на других языках непереведённые записи (работа, место рождения,
+// редкие записи о партийности) не показываются вовсе (решение Ильи 2026-11-21), по-русски — всё как есть.
+const TO = s => { const r = TV(s || ''); return RU || !/[А-Яа-яЁё]/.test(r) ? r : ''; };
 
 // ---------- подложка ----------
 const DETAIL_ZOOM = 15, LABEL_ZOOM = 16, KEEP_CELLS = 60;
@@ -366,7 +369,7 @@ function caseLine(p) {
   const kind = !RU && ch ? (CHARGE_KINDS.find(a => a[1].test(ch.toLowerCase())) || ['другое'])[0] : '';
   return [p[10] ? T('арест ') + caseDate(p[10]) : '',
     !ch ? '' : RU ? (/^(шпионаж|участие|вредительство|измена|контррев\S*|к\.-р\. \S*ость)([\s.,]|$)/i.test(ch) ? 'обвинение: ' : 'по обвинению в ') + esc(ch) : kind ? T('обвинение: ') + T(kind) : '',
-    p[11] ? T('приговор вынесен ') + esc(TV(p[11].trim())) + (p[12] ? ' ' + caseDate(p[12]) : '') : '',
+    TO(p[11] && p[11].trim()) ? T('приговор вынесен ') + esc(TO(p[11].trim())) + (p[12] ? ' ' + caseDate(p[12]) : '') : '',
     +(p[14] || '').slice(0, 4) >= 1939 ? T('реабилитация ') + caseDate(p[14]) : ''].filter(Boolean).join(' · ');
 }
 function popupHtml(addr, people) {
@@ -393,11 +396,11 @@ function popupHtml(addr, people) {
       const rest = [
         apt ? T('кв. ') + esc(apt) + (inApt[apt] > 1 ? T(' (в этой квартире расстреляно #)', inApt[apt]) : '') : '',
         bur ? T('захоронение: ') + esc(TV(bur)) : '',
-        born ? T('род.: ') + esc(born) : '', esc(TV(nat || '')), esc(TV(party || '')),
+        TO(born) ? T('род.: ') + esc(TO(born)) : '', esc(TO(nat)), esc(TO(party)),
       ].filter(Boolean).join(' · ');
       const sep = dim && !sepDone ? (sepDone = true, '<div class="other">' + T(inStory ? 'Другие расстрелянные по этому адресу' : 'Расстреляны в другие годы') + '</div>') : '';
       return sep + '<div class="p' + (dim ? ' dim' : '') + '"><div><span class="n">' + esc(TL(name)) + '</span> <span class="life">' + (by ? by + ' – ' : T('расстрел ')) + esc(ex) + '</span></div>' +
-        '<div class="job">' + esc(nat ? job : bio) + '</div><div class="m">' + rest + '</div>' + (caseLine(p) ? '<div class="m case">' + caseLine(p) + '</div>' : '') + '</div>';
+        (TO(nat ? job : bio) ? '<div class="job">' + esc(TO(nat ? job : bio)) + '</div>' : '') + '<div class="m">' + rest + '</div>' + (caseLine(p) ? '<div class="m case">' + caseLine(p) + '</div>' : '') + '</div>';
     }).join('') + '</div>';
 }
 Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/house_notes.json').then(r => r.json()).catch(() => ({}))]).then(([D, NOTES]) => {
