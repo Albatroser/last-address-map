@@ -91,6 +91,13 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
   body.sheet-on #time,body.sheet-on .leaflet-control-attribution{display:none}
   .leaflet-control-attribution{max-width:100vw}
 }
+/* переключатель языка — в правом верхнем углу, поверх вступления и карты */
+#lang{position:fixed;z-index:1200;top:10px;right:12px;display:flex;gap:2px;background:rgba(15,15,15,.82);border:1px solid #3a3c41;border-radius:7px;padding:2px;font:12px/1 system-ui,sans-serif}
+#lang button{background:none;border:0;border-radius:5px;color:#9a9ca3;font:inherit;letter-spacing:.06em;padding:6px 8px;cursor:pointer}
+#lang button:hover{color:#fff}
+#lang button.on{background:#f2f2f2;color:#111;cursor:default}
+#story-skip{right:132px!important}
+@media (max-width:759px){#search,#msg{right:126px}#story-skip{right:126px!important}}
 </style></head><body class="story-on">
 <div id="map"></div>
 <div id="story-veil"></div><div id="story"></div><a id="story-skip">Пропустить</a>
@@ -98,6 +105,9 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 <div id="msg" hidden></div>
 <div id="time"><div id="time-panel" hidden><div id="time-head"></div><div id="time-track"><div id="time-strip"></div><input id="time-range" type="range" step="1" aria-label="Год"></div><div id="time-ticks"></div></div><button id="time-btn" hidden>Таймлайн</button></div>
 <script src="vendor/leaflet/leaflet.js"></script>
+<script src="i18n_dict.js"></script>
+<script src="i18n_dict2.js"></script>
+<script src="i18n.js"></script>
 <script src="map.js"></script>
 <script src="blood.js"></script>
 <script src="view3d.js"></script>

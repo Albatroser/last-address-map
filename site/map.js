@@ -3,6 +3,9 @@
 // собирает scripts/build_basemap.py). Крупные улицы видны всегда, дома и остальные улицы — с масштаба 15.
 const map = L.map('map', { renderer: L.canvas({ tolerance: 6, padding: 0.3 }), maxZoom: 19, minZoom: 10 }).setView([55.7539, 37.6208], 12);
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+// Языки (i18n.js): T — строка из словаря, TP — слово по числу, TV — значение поля базы, TL — латиница для имён и адресов.
+// По-русски все четыре возвращают текст как есть.
+const T = I18N.t, TP = I18N.tp, TV = I18N.v, TL = I18N.tl, RU = I18N.ru;
 
 // ---------- подложка ----------
 const DETAIL_ZOOM = 15, LABEL_ZOOM = 16, KEEP_CELLS = 60;
@@ -106,7 +109,7 @@ function drawLabels() {
     const pts = lines.map(l => l.map(p => map.latLngToLayerPoint(p)));
     const len = l => { let s = 0; for (let i = 1; i < l.length; i++) s += l[i].distanceTo(l[i - 1]); return s; };
     const best = pts.map(l => [len(l), l]).sort((x, y) => y[0] - x[0])[0];
-    const text = short(name), w = measure.measureText(text).width * 1.18 + 8; // капс и разрядка шире обычного набора
+    const text = TL(short(name)), w = measure.measureText(text).width * 1.18 + 8; // капс и разрядка шире обычного набора
     if (best[0] < w * 0.9) return;
     let acc = 0; const l = best[1], half = best[0] / 2;
     for (let i = 1; i < l.length; i++) {
@@ -140,15 +143,15 @@ Promise.all([fetch('data/base/index.json').then(r => r.json()), fetch('data/base
   base.roadLines = roads.map(([name, flat]) => ({ name, pts: decode(flat, [0, 0]) }));
   base.roads = line(base.roadLines.map(r => r.pts), 'a').addTo(map);
   restyleBase();
-  map.attributionControl.addAttribution('Дома и улицы: ' + index.source + ', контуры современные');
+  map.attributionControl.addAttribution(RU ? 'Дома и улицы: ' + index.source + ', контуры современные' : T('Дома и улицы: © участники OpenStreetMap, ODbL; контуры современные'));
   refreshBase();
 }).catch(e => {
-  say('Подложка не загрузилась: ' + e.message);
+  say(T('Подложка не загрузилась: ') + e.message);
 });
 
 // ---------- источники и сообщения об ошибках ----------
 map.attributionControl.setPrefix('');
-map.attributionControl.addAttribution('Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский');
+map.attributionControl.addAttribution(T('Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский'));
 const search = document.getElementById('search');
 function say(text) { const el = document.getElementById('msg'); el.textContent = text; el.hidden = false; }
 // окно дома не должно оставаться под строкой поиска: после штатного сдвига карты проверяем и досдвигаем
@@ -355,12 +358,16 @@ const dateKey = s => { const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s || '')
 // Дело человека одной строкой: арест, обвинение, приговор, реабилитация — поля 10–14 записи (общая база «Мемориала»,
 // scripts/join_moscow_general.py). Орган в базе записан в творительном падеже («тройкой при УНКВД…»), обвинение — в предложном.
 const caseDate = s => { const m = /^(\d{4})(?:-(\d\d))?(?:-(\d\d))?$/.exec(s || ''); return !m ? '' : m[3] ? m[3] + '.' + m[2] + '.' + m[1] : m[2] ? m[2] + '.' + m[1] : m[1]; };
+// Группы обвинений: те же слова и тот же порядок, что в CHARGES в story.js (при правке менять в обоих местах).
+const CHARGE_KINDS = [['шпионаж', /шпион/], ['террор', /террор/], ['агитация', /агитац|пропаганд/], ['вредительство', /вредит|диверс/], ['заговор, измена', /заговор|измен/], ['контрреволюция', /к\.-р|контррев|антисовет/]];
 function caseLine(p) {
   const ch = (p[13] || '').trim().replace(/[.\s]+$/, '');
-  return [p[10] ? 'арест ' + caseDate(p[10]) : '',
-    ch ? (/^(шпионаж|участие|вредительство|измена|контррев\S*|к\.-р\. \S*ость)([\s.,]|$)/i.test(ch) ? 'обвинение: ' : 'по обвинению в ') + esc(ch) : '',
-    p[11] ? 'приговор вынесен ' + esc(p[11].trim()) + (p[12] ? ' ' + caseDate(p[12]) : '') : '',
-    +(p[14] || '').slice(0, 4) >= 1939 ? 'реабилитация ' + caseDate(p[14]) : ''].filter(Boolean).join(' · ');
+  // на других языках обвинение — названием группы (те же группы и тот же порядок, что на слайде об обвинениях), орган — по словарю
+  const kind = !RU && ch ? (CHARGE_KINDS.find(a => a[1].test(ch.toLowerCase())) || ['другое'])[0] : '';
+  return [p[10] ? T('арест ') + caseDate(p[10]) : '',
+    !ch ? '' : RU ? (/^(шпионаж|участие|вредительство|измена|контррев\S*|к\.-р\. \S*ость)([\s.,]|$)/i.test(ch) ? 'обвинение: ' : 'по обвинению в ') + esc(ch) : kind ? T('обвинение: ') + T(kind) : '',
+    p[11] ? T('приговор вынесен ') + esc(TV(p[11].trim())) + (p[12] ? ' ' + caseDate(p[12]) : '') : '',
+    +(p[14] || '').slice(0, 4) >= 1939 ? T('реабилитация ') + caseDate(p[14]) : ''].filter(Boolean).join(' · ');
 }
 function popupHtml(addr, people) {
   const ppl = people.slice().sort((a, b) => dateKey(a[3]) - dateKey(b[3]));
@@ -368,8 +375,8 @@ function popupHtml(addr, people) {
   const apts = Object.keys(inApt).length;
   const years = ppl.map(p => yearOf(p[3])).filter(Boolean);
   const y0 = Math.min(...years), y1 = Math.max(...years);
-  let sum = ppl.length + ' ' + plural(ppl.length, 'человек', 'человека', 'человек');
-  if (apts) sum += ' · ' + apts + ' ' + plural(apts, 'квартира', 'квартиры', 'квартир');
+  let sum = ppl.length + ' ' + TP(ppl.length, 'человек', 'человека', 'человек');
+  if (apts) sum += ' · ' + apts + ' ' + TP(apts, 'квартира', 'квартиры', 'квартир');
   if (years.length) sum += ' · ' + (y0 === y1 ? y0 : y0 + '–' + y1);
   // если на таймлайне выбран год: сначала расстрелянные в этот год, остальные ниже и серым
   // во вступлении (story.match — люди, подошедшие под ответы посетителя) выделены только они, остальные жильцы серые
@@ -378,18 +385,18 @@ function popupHtml(addr, people) {
   const inYear = picked ? ppl.filter(picked) : ppl;
   const rows = picked ? inYear.concat(ppl.filter(p => !picked(p))) : ppl;
   let sepDone = false;
-  if (pickedYear && !inStory) sum = 'в ' + pickedYear + ' году — ' + inYear.length + ' из ' + ppl.length + ' · ' + sum;
-  return '<div class="pp"><h3>' + esc(addr) + '</h3><div class="sum">' + sum + '</div>' +
+  if (pickedYear && !inStory) sum = T('в # году — # из #', pickedYear, inYear.length, ppl.length) + ' · ' + sum;
+  return '<div class="pp"><h3>' + esc(TL(addr)) + '</h3><div class="sum">' + sum + '</div>' +
     rows.map(p => {
       const [apt, name, by, ex, bur, bio, born, nat, party, job] = p;
       const dim = picked && !picked(p);
       const rest = [
-        apt ? 'кв. ' + esc(apt) + (inApt[apt] > 1 ? ' (в этой квартире расстреляно ' + inApt[apt] + ')' : '') : '',
-        bur ? 'захоронение: ' + esc(bur) : '',
-        born ? 'род.: ' + esc(born) : '', esc(nat || ''), esc(party || ''),
+        apt ? T('кв. ') + esc(apt) + (inApt[apt] > 1 ? T(' (в этой квартире расстреляно #)', inApt[apt]) : '') : '',
+        bur ? T('захоронение: ') + esc(TV(bur)) : '',
+        born ? T('род.: ') + esc(born) : '', esc(TV(nat || '')), esc(TV(party || '')),
       ].filter(Boolean).join(' · ');
-      const sep = dim && !sepDone ? (sepDone = true, '<div class="other">' + (inStory ? 'Другие расстрелянные по этому адресу' : 'Расстреляны в другие годы') + '</div>') : '';
-      return sep + '<div class="p' + (dim ? ' dim' : '') + '"><div><span class="n">' + esc(name) + '</span> <span class="life">' + (by ? by + ' – ' : 'расстрел ') + esc(ex) + '</span></div>' +
+      const sep = dim && !sepDone ? (sepDone = true, '<div class="other">' + T(inStory ? 'Другие расстрелянные по этому адресу' : 'Расстреляны в другие годы') + '</div>') : '';
+      return sep + '<div class="p' + (dim ? ' dim' : '') + '"><div><span class="n">' + esc(TL(name)) + '</span> <span class="life">' + (by ? by + ' – ' : T('расстрел ')) + esc(ex) + '</span></div>' +
         '<div class="job">' + esc(nat ? job : bio) + '</div><div class="m">' + rest + '</div>' + (caseLine(p) ? '<div class="m case">' + caseLine(p) + '</div>' : '') + '</div>';
     }).join('') + '</div>';
 }
@@ -410,7 +417,7 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     ppl.forEach(q => { const y = yearOf(q[3]); if (y) m.byYear[y] = (m.byYear[y] || 0) + 1; });
     m.bindPopup(() => popupHtml(addr, ppl), popupOpts);
     m.addTo(map);
-    houses.push({ addr, m, key: ' ' + norm(addr) + ' ' });
+    houses.push({ addr, m, key: ' ' + norm(addr) + ' ' + (RU ? '' : norm(TL(addr)) + ' ') }); // на других языках адрес ищется и латиницей
   });
   const fmt = n => n.toLocaleString('ru');
 
@@ -423,10 +430,11 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     if (!m || !m.note) return;
     const d = document.createElement('aside');
     d.className = 'note';
-    d.innerHTML = '<h4>' + esc(m.note.title) + '</h4><p>' + esc(m.note.text) + '</p>' +
-      '<p>В базе по этому адресу ' + m.n + ' ' + plural(m.n, 'расстрелянный', 'расстрелянных', 'расстрелянных') + ', из них членов ВКП(б) — ' + m.party + ' (' + pct(m.party, m.n) +
-      '). По всей карте членов ВКП(б) — ' + pct(partyAll[0], partyAll[1]) + '.</p>' +
-      '<p class="src">Источники: ' + m.note.sources.map(([t, u]) => '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(t) + '</a>').join('; ') + '.</p>';
+    d.innerHTML = '<h4>' + esc(TV(m.note.title)) + '</h4><p>' + esc(TV(m.note.text)) + '</p>' +
+      (RU ? '<p>В базе по этому адресу ' + m.n + ' ' + plural(m.n, 'расстрелянный', 'расстрелянных', 'расстрелянных') + ', из них членов ВКП(б) — ' + m.party + ' (' + pct(m.party, m.n) +
+      '). По всей карте членов ВКП(б) — ' + pct(partyAll[0], partyAll[1]) + '.</p>'
+        : '<p>' + T('В базе по этому адресу # расстрелянных, из них членов ВКП(б) — # (#). По всей карте членов ВКП(б) — #.', m.n, m.party, pct(m.party, m.n), pct(partyAll[0], partyAll[1])) + '</p>') +
+      '<p class="src">' + T('Источники: ') + m.note.sources.map(([t, u]) => '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(t) + '</a>').join('; ') + '.</p>';
     L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
     box.appendChild(d);
     setTimeout(() => { // справка не должна уходить за левый край или под строку поиска
@@ -452,9 +460,9 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     const note = el.querySelector('.note'), h4 = note && note.querySelector('h4');
     let noteHtml = '';
     if (note) { const c = note.cloneNode(true), t = c.querySelector('h4'); if (t) t.remove();
-      noteHtml = '<details class="note-m"><summary>' + esc(h4 ? h4.textContent : 'Об этом доме') + '</summary>' + c.innerHTML + '</details>'; }
+      noteHtml = '<details class="note-m"><summary>' + esc(h4 ? h4.textContent : T('Об этом доме')) + '</summary>' + c.innerHTML + '</details>'; }
     sheet = document.createElement('div'); sheet.id = 'sheet'; sheet.className = 'sheet';
-    sheet.innerHTML = '<button class="x" aria-label="Закрыть">×</button><div class="sheet-body">' + noteHtml + body.innerHTML + '</div>';
+    sheet.innerHTML = '<button class="x" aria-label="' + T('Закрыть') + '">×</button><div class="sheet-body">' + noteHtml + body.innerHTML + '</div>';
     sheet.querySelector('.x').onclick = () => map.closePopup();
     document.body.appendChild(sheet); document.body.classList.add('sheet-on');
     if (story) return; // во вступлении карта и так стоит над панелью, камерой управляет лента
@@ -464,12 +472,12 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
 
   // ---------- поиск по адресу: улицы и дома, но только те, что есть на карте ----------
   const q = document.getElementById('q'), hits = document.getElementById('hits');
-  const SKIP = new Set(['улица', 'ул', 'переулок', 'пер', 'дом', 'д', 'проспект', 'просп', 'пр', 'бульвар', 'бул', 'площадь', 'пл', 'набережная', 'наб', 'шоссе', 'ш', 'проезд', 'корп', 'корпус', 'стр', 'строение', 'москва']);
+  const SKIP = new Set(['ul', 'ulitsa', 'per', 'pereulok', 'd', 'dom', 'pl', 'nab', 'sh', 'pr', 'prosp', 'street', 'moscow', 'moskva', 'улица', 'ул', 'переулок', 'пер', 'дом', 'д', 'проспект', 'просп', 'пр', 'бульвар', 'бул', 'площадь', 'пл', 'набережная', 'наб', 'шоссе', 'ш', 'проезд', 'корп', 'корпус', 'стр', 'строение', 'москва']);
   // улица — часть адреса до «, д.»; у неё список домов и общее число людей
   const streets = new Map();
   houses.forEach(h => {
     const name = h.addr.split(/,\s*д\./)[0].trim();
-    if (!streets.has(name)) streets.set(name, { street: name, key: ' ' + norm(name) + ' ', list: [], n: 0 });
+    if (!streets.has(name)) streets.set(name, { street: name, key: ' ' + norm(name) + ' ' + (RU ? '' : norm(TL(name)) + ' '), list: [], n: 0 });
     const st = streets.get(name); st.list.push(h); st.n += h.m.n;
   });
   const score = (key, words) => {
@@ -494,12 +502,12 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
   function go(x) {
     hits.textContent = ''; found = []; q.blur();
     if (x.street) { // улица: показать все её дома на карте
-      q.value = x.street;
+      q.value = TL(x.street);
       map.closePopup();
       pickedStreet = new Set(x.list.map(h => h.m)); redrawDots();
       map.fitBounds(L.latLngBounds(x.list.map(h => h.m.getLatLng())), { paddingTopLeft: [40, 80], paddingBottomRight: [40, 60], maxZoom: 17, animate: false });
     } else {
-      q.value = x.addr;
+      q.value = TL(x.addr);
       if (pickedStreet) { pickedStreet = null; redrawDots(); }
       map.setView(x.m.getLatLng(), Math.max(map.getZoom(), 17), { animate: false });
       x.m.openPopup();
@@ -510,8 +518,8 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
   const row = (x, k) => {
     const b = document.createElement('button');
     b.innerHTML = x.street
-      ? esc(x.street) + ' <span>вся улица · ' + x.list.length + ' ' + plural(x.list.length, 'дом', 'дома', 'домов') + ' · ' + x.n + ' чел.</span>'
-      : esc(x.addr) + ' <span>' + x.m.n + ' чел.</span>';
+      ? esc(TL(x.street)) + ' <span>' + T('вся улица · ') + x.list.length + ' ' + TP(x.list.length, 'дом', 'дома', 'домов') + ' · ' + x.n + ' ' + TP(x.n, 'чел.', 'чел.', 'чел.') + '</span>'
+      : esc(TL(x.addr)) + ' <span>' + x.m.n + ' ' + TP(x.m.n, 'чел.', 'чел.', 'чел.') + '</span>';
     b.onmousedown = e => e.preventDefault(); // чтобы строка поиска не теряла фокус раньше нажатия
     b.onclick = () => go(x);
     b.onmouseenter = () => { active = k; mark(); };
@@ -523,10 +531,10 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     .concat(houses.slice().sort((a, b) => b.m.n - a.m.n).slice(0, 1));
   function suggest() {
     hits.textContent = ''; found = []; active = -1;
-    const d = document.createElement('div'); d.className = 'eg'; d.append('Например: ');
+    const d = document.createElement('div'); d.className = 'eg'; d.append(T('Например: '));
     egs.forEach((x, k) => {
       const b = document.createElement('a');
-      b.textContent = x.street ? x.street.replace(/ ул\.$/, '') : x.addr.replace(/ ул\., д\./, ', ');
+      b.textContent = TL(x.street ? x.street.replace(/ ул\.$/, '') : x.addr.replace(/ ул\., д\./, ', '));
       b.onmousedown = e => e.preventDefault(); // чтобы строка поиска не теряла фокус раньше нажатия
       b.onclick = () => go(x);
       if (k) d.append(', ');
@@ -538,7 +546,7 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     found = find(q.value); active = 0;
     hits.textContent = '';
     if (!q.value.trim()) { if (pickedStreet) { pickedStreet = null; redrawDots(); } suggest(); return; } // пустая строка поиска снимает выделение улицы
-    if (!found.length) { hits.innerHTML = '<div class="none">Такой улицы или адреса нет среди домов на карте</div>'; return; }
+    if (!found.length) { hits.innerHTML = '<div class="none">' + T('Такой улицы или адреса нет среди домов на карте') + '</div>'; return; }
     found.forEach((x, k) => hits.appendChild(row(x, k)));
     mark();
   };
@@ -565,7 +573,7 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
   dots.forEach(m => Object.keys(m.byYear).forEach(y => { byYear[y] = (byYear[y] || 0) + m.byYear[y]; housesIn[y] = (housesIn[y] || 0) + 1; }));
   const ys = Object.keys(byYear).map(Number), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const strip = document.getElementById('time-strip'), slider = document.getElementById('time-range'), head = document.getElementById('time-head'), panel = document.getElementById('time-panel');
-  const ppl = n => fmt(n) + ' ' + plural(n, 'человек', 'человека', 'человек'), hs = n => fmt(n) + ' ' + plural(n, 'дом', 'дома', 'домов');
+  const ppl = n => I18N.num(fmt(n)) + ' ' + TP(n, 'человек', 'человека', 'человек'), hs = n => I18N.num(fmt(n)) + ' ' + TP(n, 'дом', 'дома', 'домов');
   function pick(y) { // y = 0 — все годы
     pickedYear = y;
     redrawDots();
@@ -573,8 +581,8 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     slider.classList.toggle('idle', !y);
     [...strip.children].forEach(c => c.classList.toggle('on', +c.dataset.y === y));
     const n = byYear[y] || 0;
-    head.innerHTML = !y ? '<b>' + y0 + '–' + y1 + '</b> — все годы. Чем краснее клетка, тем больше расстрелянных за год. Двигайте ползунок, чтобы выделить год на карте.'
-      : '<b>' + y + '</b> — ' + (n ? ppl(n) + ', ' + hs(housesIn[y]) : 'в базе нет расстрелянных с известным адресом') + ' <button id="time-all">Все годы</button>';
+    head.innerHTML = !y ? T('<b>#–#</b> — все годы. Чем краснее клетка, тем больше расстрелянных за год. Двигайте ползунок, чтобы выделить год на карте.', y0, y1)
+      : '<b>' + y + '</b> — ' + (n ? ppl(n) + ', ' + hs(housesIn[y]) : T('в базе нет расстрелянных с известным адресом')) + ' <button id="time-all">' + T('Все годы') + '</button>';
     const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(0);
   }
   // Линия под ползунком: клетка на год, цвет — по числу расстрелянных за этот год (решение Ильи 2026-11-21; раньше клетки были одинаковыми).
@@ -584,7 +592,7 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
   const yearColor = n => { if (!n) return '#2a2b30'; const t = Math.log(1 + n) / Math.log(1 + yMax); return 'rgb(' + mixc(74, 255, t) + ',' + mixc(40, 59, t) + ',' + mixc(40, 47, t) + ')'; };
   for (let y = y0; y <= y1; y++) {
     const c = document.createElement('i'), n = byYear[y] || 0;
-    c.dataset.y = y; c.title = y + ' — ' + (n ? ppl(n) : 'никого');
+    c.dataset.y = y; c.title = y + ' — ' + (n ? ppl(n) : T('никого'));
     c.style.background = yearColor(n);
     strip.appendChild(c);
   }
@@ -612,12 +620,12 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
   btn.hidden = false;
   btn.onclick = () => {
     panel.hidden = !panel.hidden;
-    btn.textContent = panel.hidden ? 'Таймлайн' : 'Скрыть таймлайн';
+    btn.textContent = T(panel.hidden ? 'Таймлайн' : 'Скрыть таймлайн');
     if (panel.hidden && pickedYear) pick(0); // закрытый таймлайн не должен незаметно менять карту
   };
   pick(0);
   window.storyData = true; // данные готовы — можно начинать вступление (story.js)
   if (window.startStory) window.startStory();
 }).catch(e => {
-  say('Данные не загрузились: ' + e.message + '. Страницу нужно открывать через веб-сервер, а не как файл.');
+  say(T('Данные не загрузились: ') + e.message + T('. Страницу нужно открывать через веб-сервер, а не как файл.'));
 });
