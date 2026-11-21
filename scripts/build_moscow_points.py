@@ -6,6 +6,9 @@
   6 место рождения                7 национальность 8 партийность       9 работа, должность
 Поля 6–9 получены разбором строки 5 и заполнены, только если строка разобралась целиком;
 иначе они пустые, а показывать нужно строку 5.
+Поля 10–14 — из дела, взяты из общей базы «Мемориала» (data/moscow/persons_case.csv, собирает scripts/join_moscow_general.py):
+  10 дата ареста (ГГГГ-ММ-ДД)   11 кто вынес приговор   12 дата приговора   13 обвинение   14 дата реабилитации
+Пустые, если дело не нашлось. Файла persons_case.csv может не быть — тогда поля пустые у всех.
 
 Координаты берутся из addresses_geocoded.csv; отдельные адреса исправлены вручную в data/moscow/coord_overrides.csv.
 
@@ -62,6 +65,11 @@ def person(p):
 
 def main():
     ad, pe, gk = rows("addresses.csv"), rows("persons.csv"), rows("addresses_geocoded.csv")
+    # дело: строки persons_case.csv идут в том же порядке, что и persons.csv; на всякий случай сверяется имя
+    case = rows("persons_case.csv") if (M / "persons_case.csv").exists() else []
+    for i, p in enumerate(pe):
+        c = case[i] if i < len(case) and case[i]["NAME"] == p["NAME"].strip() and case[i]["match"] else None
+        p["CASE"] = [c[k].strip() for k in ("arrest_date", "court_body", "court_date", "article", "rehab_date")] if c else [""] * 5
     coords = {}
     for g in gk:
         if g["latitude"] and g["longitude"]:
@@ -77,7 +85,7 @@ def main():
         if key not in coords:
             missing += 1
             continue
-        ppl = [person(p) for p in by_addr[a["ADDRESS_ID"]]]
+        ppl = [person(p) + p["CASE"] for p in by_addr[a["ADDRESS_ID"]]]
         total += len(ppl)
         parsed += sum(1 for x in ppl if x[7])
         lat, lon = fixes.get(a["ADDRESS"], coords[key])

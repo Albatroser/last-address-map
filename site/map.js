@@ -352,6 +352,16 @@ const plural = (n, one, few, many) => { const a = n % 10, b = n % 100; return a 
 const yearOf = s => +(/(\d{4})$/.exec(s || '') || [])[1] || 0;
 const norm = s => String(s).toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim();
 const dateKey = s => { const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s || ''); return m ? +m[3] * 10000 + +m[2] * 100 + +m[1] : 99999999; };
+// Дело человека одной строкой: арест, обвинение, приговор, реабилитация — поля 10–14 записи (общая база «Мемориала»,
+// scripts/join_moscow_general.py). Орган в базе записан в творительном падеже («тройкой при УНКВД…»), обвинение — в предложном.
+const caseDate = s => { const m = /^(\d{4})(?:-(\d\d))?(?:-(\d\d))?$/.exec(s || ''); return !m ? '' : m[3] ? m[3] + '.' + m[2] + '.' + m[1] : m[2] ? m[2] + '.' + m[1] : m[1]; };
+function caseLine(p) {
+  const ch = (p[13] || '').trim().replace(/[.\s]+$/, '');
+  return [p[10] ? 'арест ' + caseDate(p[10]) : '',
+    ch ? (/^(шпионаж|участие|вредительство|измена|контррев\S*|к\.-р\. \S*ость)([\s.,]|$)/i.test(ch) ? 'обвинение: ' : 'по обвинению в ') + esc(ch) : '',
+    p[11] ? 'приговор вынесен ' + esc(p[11].trim()) + (p[12] ? ' ' + caseDate(p[12]) : '') : '',
+    +(p[14] || '').slice(0, 4) >= 1939 ? 'реабилитация ' + caseDate(p[14]) : ''].filter(Boolean).join(' · ');
+}
 function popupHtml(addr, people) {
   const ppl = people.slice().sort((a, b) => dateKey(a[3]) - dateKey(b[3]));
   const inApt = {}; ppl.forEach(p => { if (p[0]) inApt[p[0]] = (inApt[p[0]] || 0) + 1; });
@@ -380,7 +390,7 @@ function popupHtml(addr, people) {
       ].filter(Boolean).join(' · ');
       const sep = dim && !sepDone ? (sepDone = true, '<div class="other">' + (inStory ? 'Другие расстрелянные по этому адресу' : 'Расстреляны в другие годы') + '</div>') : '';
       return sep + '<div class="p' + (dim ? ' dim' : '') + '"><div><span class="n">' + esc(name) + '</span> <span class="life">' + (by ? by + ' – ' : 'расстрел ') + esc(ex) + '</span></div>' +
-        '<div class="job">' + esc(nat ? job : bio) + '</div><div class="m">' + rest + '</div></div>';
+        '<div class="job">' + esc(nat ? job : bio) + '</div><div class="m">' + rest + '</div>' + (caseLine(p) ? '<div class="m case">' + caseLine(p) + '</div>' : '') + '</div>';
     }).join('') + '</div>';
 }
 Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/house_notes.json').then(r => r.json()).catch(() => ({}))]).then(([D, NOTES]) => {

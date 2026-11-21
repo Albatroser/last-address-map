@@ -115,7 +115,7 @@
     const krGuard = kremlin.filter(x => /кремл/i.test(x.p[9] || x.p[5])).length, krD = topDay(kremlin);
     const krNext = krD[2][krD[0] + 1] ? krD[0] + 1 : krD[2][krD[0] - 1] ? krD[0] - 1 : 0; // соседний день, если расстреливали и в него
     const krTwo = krNext ? [Math.min(krD[0], krNext), krD[1] + krD[2][krNext]] : null;
-    const brief = x => '<p class="line"><b>' + esc(x.p[1]) + '</b><br>' + esc(x.p[7] ? x.p[9] : x.p[5]) + '</p>';
+    const brief = x => '<p class="line"><b>' + esc(x.p[1]) + '</b><br>' + esc(x.p[7] ? x.p[9] : x.p[5]) + chg(x) + '</p>'; // chg — обвинение, определено ниже
     // школьники: в описании человека прямо сказано, что он учащийся школы или класса
     const pupils = P.filter(x => /учащ\S* (\d+-го класса|школы)/i.test(x.p[7] ? x.p[9] : x.p[5]));
     // партийность — поле базы. Член ВКП(б): запись начинается с «член ВКП» (то же правило, что в справках о домах, map.js)
@@ -130,16 +130,34 @@
     const partyBar3 = parts => '<div class="split">' + parts.map(([n, col]) => '<i style="background:' + col + ';flex:' + n + '"></i>').join('') + '</div>';
     const leg3 = (n, col, text) => '<p class="leg"><i style="background:' + col + '"></i>' + text + ' — ' + fmt(n) + ' · ' + Math.round(n / P.length * 100) + ' %</p>';
     const leg = (k, text) => '<p class="leg"><i style="background:' + PARTY_COL[k] + '"></i>' + text + ' — ' + fmt(party[k].length) + ' · ' + Math.round(party[k].length / P.length * 100) + ' %</p>';
-    // Места на карте, которых нет в базе. НЕ СВЕРЕНО: названия и роль мест написаны по памяти, координаты приблизительные
-    // (тоже по памяти, не по источнику). Источники, которые удалось найти: о Военной коллегии на Никольской, 23 —
-    // «Новая газета» (https://novayagazeta.ru/articles/2008/04/03/38594-pulya-v-serdtse-moskvy); о Бутовском полигоне
-    // (20 762 расстрелянных с 8 августа 1937 по 19 октября 1938) — Большая российская энциклопедия
-    // (https://bigenc.ru/c/butovskii-poligon-a7de44). О тюрьмах, Коммунарке и Донском источник не найден.
-    const JAILS = [
-      [55.7608, 37.6272, 'Лубянка: внутренняя тюрьма НКВД'], [55.7836, 37.5958, 'Бутырская тюрьма'],
-      [55.7636, 37.7064, 'Лефортовская тюрьма'], [55.7372, 37.6606, 'Таганская тюрьма'],
-      [55.7585, 37.6243, 'Никольская, 23: Военная коллегия'],
+    // Места на карте, которых нет в базе: по проекту «Мемориала» «Это прямо здесь. Москва. Топография террора» (topos.memo.ru, копии в веб-архиве)
+    // и послесловию А. Б. Рогинского к книге памяти «Расстрельные списки. Москва, 1937–1941». Выписки с цитатами и адресами страниц —
+    // research/topography_path.md. Координаты — точки объектов с карты «Топографии», по другой карте не сверялись.
+    // Два пути: дела Управления НКВД по Московской области (массовые операции) и дела Центрального аппарата НКВД.
+    // Один слайд, два цвета (решение Ильи 2026-11-21): светлые — места Управления НКВД по Московской области, красные — Центрального аппарата;
+    // Бутырская тюрьма принимала и тех, и других. Точки нажимаются: справка о месте — пересказ страницы «Топографии» со ссылкой на неё.
+    const SRC = { unkvd: ['«Топография террора»: УНКВД Москвы и Московской области', 'https://web.archive.org/web/20161116204308/http://topos.memo.ru/mchk-unkvd-moskvy-i-moskovskoy-oblasti-tyurma-moskovskogo-oblastnogo-upravleniya-nkvd'],
+      lub2: ['«Топография террора»: Лубянка, 2', 'https://web.archive.org/web/20160924045200/http://topos.memo.ru/lubyanka-2'],
+      vkvs: ['«Топография террора»: Военная коллегия Верховного суда', 'https://web.archive.org/web/20191021202641/https://old.topos.memo.ru/voennaya-kollegiya-verhovnogo-suda-okb-v-eku-ogpu'],
+      butovo: ['«Топография террора»: Бутовский полигон', 'https://web.archive.org/web/20161102125909/http://topos.memo.ru/specobekt-butovskiy-poligon'],
+      tag: ['«Топография террора»: Таганская тюрьма', 'https://web.archive.org/web/20191022165140/https://old.topos.memo.ru/taganskaya-tyurma'],
+      sret: ['«Топография террора»: Сретенская тюрьма', 'https://web.archive.org/web/20160505111628/http://topos.memo.ru/sretenskaya-tyurma'],
+      nov: ['«Топография террора»: Новинская женская тюрьма', 'https://web.archive.org/web/20191021202438/https://old.topos.memo.ru/novinskaya-zhenskaya-tyurma'],
+      but: ['«Топография террора»: Бутырская тюрьма', 'https://web.archive.org/web/20191021210557/https://old.topos.memo.ru/butyrskaya-tyurma'],
+      lef: ['«Топография террора»: Лефортовская тюрьма', 'https://web.archive.org/web/20160128180839/http://topos.memo.ru/lefortovskaya-tyurma'],
+      rog: ['А. Б. Рогинский. Послесловие к книге памяти «Расстрельные списки. Москва, 1937–1941»', 'https://web.archive.org/web/2002/http://www.memo.ru/memory/communarka/komm.htm'] };
+    const COL_UN = '#e8e9ec', COL_CA = '#ff3b2f';
+    const SPOTS = [
+      [55.76240, 37.62939, 'Б. Лубянка, 14', COL_UN, null, 'Управление НКВД по Московской области и его тюрьма. Управление вело массовые операции в Москве и области. Сюда привозили после ареста: Варлам Шаламов называл это место «собачником» — сборным приёмником, откуда отправляли дальше.', 'unkvd', 'u'],
+      [55.73598, 37.65387, 'Таганская тюрьма', COL_UN, null, 'Тюрьма управления НКВД по Московской области. Отсюда многих везли на расстрел в Бутово. Снесена в 1958 году.', 'tag'],
+      [55.76932, 37.61803, 'Сретенская тюрьма', COL_UN, null, 'В основном здесь держали арестованных милицией, но не меньше 225 мест отводилось арестованным госбезопасностью. В годы Большого террора использовалась активно.', 'sret'],
+      [55.75356, 37.57689, 'Новинская тюрьма', COL_UN, null, 'Женская тюрьма. Сюда, как и в Бутырскую и Таганскую, переводили арестованных, если следствие затягивалось.', 'nov'],
+      [55.78452, 37.59395, 'Бутырская тюрьма', COL_UN, COL_CA, 'Старейшая из московских тюрем. Сюда переводили и арестованных московским управлением, и из Внутренней тюрьмы на Лубянке.', 'but'],
+      [55.76087, 37.62796, 'Лубянка, 2', COL_CA, null, 'Центральный аппарат НКВД и его Внутренняя тюрьма во дворе. В 1936 году в ней было 118 камер на 350 мест. Тюрьма только для предварительного заключения: отсюда переводили в Бутырскую и Лефортовскую.', 'lub2', 'l'],
+      [55.76133, 37.70593, 'Лефортовская тюрьма', COL_CA, null, 'С 1935 года — тюрьма для подследственных, в 1937 году в ней 300 мест. Известна как место массового применения пыток.', 'lef'],
+      [55.75895, 37.62435, 'Никольская, 23', COL_CA, null, 'Военная коллегия Верховного суда СССР. По её собственным отчётам, с 1 октября 1936 по 30 ноября 1938 года она приговорила к расстрелу 31 456 человек, из них 7 408 — в Москве.', 'vkvs', 'd'],
     ];
+    const srcLine = keys => '<p class="quiet">Источники: ' + keys.map(k => '<a href="' + SRC[k][1] + '" target="_blank" rel="noopener">' + SRC[k][0] + '</a>').join('; ') + '.</p>';
     // места захоронения — как они названы в базе; число у каждого считается из данных карты
     const GRAVES = { 'Бутово': [55.5333, 37.5944], 'Коммунарка': [55.5786, 37.4560], 'Донское': [55.7143, 37.6010],
       'Ваганьковское кладбище': [55.7686, 37.5497], 'Яузская больница': [55.7490, 37.6520] };
@@ -182,7 +200,7 @@
     const womenPct = (women.length / P.length * 100).toFixed(1).replace('.', ',');
     // подростки (самые младшие и школьники) и самые старшие — одна сцена
     const teens = youngest.concat(pupils.filter(x => !youngest.includes(x))), ageRows = teens.concat(oldest);
-    const ageLine = x => '<p class="line"><b>' + esc(x.p[1]) + '</b><br>' + (x.p[2] ? x.p[2] + ' – ' : '') + esc(x.p[3]) + ' · ' + esc(x.p[7] ? x.p[9] : x.p[5]) + '<br>' + esc(houseText(x.m.addr)) + '</p>';
+    const ageLine = x => '<p class="line"><b>' + esc(x.p[1]) + '</b><br>' + (x.p[2] ? x.p[2] + ' – ' : '') + esc(x.p[3]) + ' · ' + esc(x.p[7] ? x.p[9] : x.p[5]) + '<br>' + esc(houseText(x.m.addr)) + chg(x) + '</p>';
     // ---------- закономерности по национальностям (решение Ильи 2026-11-21: «берём все, с объяснениями почему») ----------
     // Числа считаются здесь из данных карты. Объяснения — по источникам, они перечислены в docs/concept.md.
     const natKey = x => { const t = (x.p[7] || '').trim().toLowerCase(), g = NAT_ALL.find(a => a[2].test(t)); return g ? g[0] : ''; };
@@ -394,6 +412,66 @@
         (h.note.storyMil ? '<p>Военных среди расстрелянных жильцов — ' + mil + '. ' + esc(h.note.storyRest || '') + '</p>' + // storyRest — занятия остальных, выписаны из записей базы по этому дому
           '<p class="quiet">Военные посчитаны по словам в записи о работе; о том, как менялся состав жильцов дома, в базе сведений нет.</p>' : '');
     };
+    // ---------- дело: арест, обвинение, приговор, реабилитация (сшивка с общей базой «Мемориала», 2026-11-21) ----------
+    // Поля 10–14 записи человека (scripts/build_moscow_points.py): дата ареста, кто вынес приговор, дата приговора, обвинение,
+    // дата реабилитации. Пустые, если дело не нашлось. Всё ниже считается из этих полей по людям с карты.
+    const dnum = s => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : 0; };
+    const shotNum = x => { const d = dayOf(x.p[3]); return d ? Date.UTC(Math.floor(d / 10000), Math.floor(d / 100) % 100 - 1, d % 100) : 0; };
+    const isoText = s => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s || ''); return m ? (+m[3]) + ' ' + MONTHS[+m[2] - 1] + ' ' + m[1] + ' года' : ''; };
+    const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? (b.length % 2 ? b[(b.length - 1) / 2] : Math.round((b[b.length / 2 - 1] + b[b.length / 2]) / 2)) : 0; };
+    // кто вынес приговор — по словам в записи
+    const bodyOf = x => { const t = (x.p[11] || '').toLowerCase(); return !t ? '' : /вквс|военн\S* коллеги/.test(t) ? 'vk' : /комисси\S* нквд/.test(t) ? 'kom' : /тройк/.test(t) ? 'tr' : /огпу/.test(t) ? 'ogpu' : 'oth'; };
+    // Обвинение — по словам в записи. Если пунктов несколько, человек отнесён к первому из этого списка.
+    const CHARGES = [['spy', 'шпионаж', /шпион/, '#f5b83d'], ['ter', 'террор', /террор/, '#ff3b2f'], ['agi', 'агитация', /агитац|пропаганд/, '#62b0ff'],
+      ['wre', 'вредительство', /вредит|диверс/, '#5fd38d'], ['plot', 'заговор, измена', /заговор|измен/, '#b48cff'], ['kr', 'контрреволюция', /к\.-р|контррев|антисовет/, '#d0d2d8']];
+    const chargeOf = x => { const t = (x.p[13] || '').toLowerCase(); if (!t) return ''; const g = CHARGES.find(a => a[2].test(t)); return g ? g[0] : 'oth'; };
+    const chN = {}, chTint = new Map(); P.forEach(x => { const k = chargeOf(x); chN[k] = (chN[k] || 0) + 1; chTint.set(x.p, (CHARGES.find(a => a[0] === k) || [])[3] || NAT_GREY); });
+    const chMax = Math.max(...CHARGES.map(a => chN[a[0]] || 0));
+    const chBar = (label, n, col) => '<div class="hbar wider2"><span>' + label + '</span><i style="background:' + col + ';width:' + (n / chMax * 120).toFixed(0) + 'px"></i><b>' + fmt(n) + '</b></div>';
+    // обвинение в строке о человеке: в базе оно записано в предложном падеже («шпионаже»), изредка — в именительном
+    const chargeText = x => { const t = (x.p[13] || '').trim().replace(/[.\s]+$/, ''); return !t ? '' : /^(шпионаж|участие|вредительство|измена|контррев\S*|к\.-р\. \S*ость)([\s.,]|$)/i.test(t) ? 'обвинение: ' + t : 'по обвинению в ' + t; };
+    const chg = x => chargeText(x) ? '<br><span class="chg">' + esc(chargeText(x)) + '</span>' : '';
+    // День, когда арестовали больше всего людей с карты (слайд «Приходили сразу по всему городу»).
+    const arrDay = {}; P.forEach(x => { if (dnum(x.p[10])) (arrDay[x.p[10]] = arrDay[x.p[10]] || []).push(x); });
+    const dayTopD = Object.keys(arrDay).sort((a, b) => arrDay[b].length - arrDay[a].length || (a < b ? -1 : 1))[0], dayTop = dayTopD ? { d: dayTopD, rows: arrDay[dayTopD] } : null;
+    // Анимация слайда «когда» (идея Ильи 2026-11-21): время идёт с 1936 по середину 1939 года, на карте кровью — те, кого арестовали
+    // за последние 30 дней. Волна нарастает, держится два года и спадает. arrSorted — люди с датой ареста, по порядку.
+    const arrSorted = P.filter(x => dnum(x.p[10])).map(x => [dnum(x.p[10]), x]).sort((a, b) => a[0] - b[0]);
+    const MONTHS_NOM = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+    // когда: год расстрела
+    const peakRows = P.filter(x => { const y = yearOf(x.p[3]); return y === 1937 || y === 1938; });
+    // сроки: от ареста до расстрела и от приговора до расстрела, по органам
+    const gapA = rows => med(rows.map(x => dnum(x.p[10]) && shotNum(x) >= dnum(x.p[10]) ? Math.round((shotNum(x) - dnum(x.p[10])) / 864e5) : -1).filter(d => d >= 0));
+    const gapC = rows => rows.map(x => dnum(x.p[12]) && shotNum(x) >= dnum(x.p[12]) ? Math.round((shotNum(x) - dnum(x.p[12])) / 864e5) : -1).filter(d => d >= 0);
+    const byBody = {}; P.forEach(x => { const k = bodyOf(x); if (k) (byBody[k] = byBody[k] || []).push(x); });
+    const vkRows = byBody.vk || [], trRows = byBody.tr || [], komRows = byBody.kom || [], vkC = gapC(vkRows);
+    const sameDayPct = pct(vkC.filter(d => d === 0).length, vkC.length);
+    // Куда везли, решал приговор (один слайд вместо трёх; Илья 2026-11-21: «я скорее запутался, чем что-то понял»):
+    // приговорённые Военной коллегией — красные, «тройками» и комиссией НКВД и прокурора — светлые; линии — к месту захоронения.
+    const massRows = trRows.concat(komRows), inG = (rows, g) => rows.filter(x => x.p[4] === g).length;
+    const pathRows = vkRows.concat(massRows), pathTint = new Map(); vkRows.forEach(x => pathTint.set(x.p, '#ff3b2f')); massRows.forEach(x => pathTint.set(x.p, '#c9cbd1'));
+    const pathRed = vkRows.filter(x => GRAVES[x.p[4]]).map(lineTo), pathLight = massRows.filter(x => GRAVES[x.p[4]]).map(lineTo);
+    // Почему так (Илья 2026-11-21: «было бы неплохо рассказать и показать, что вследствие чего»): кем был человек — тем определялось,
+    // кто вынесет приговор, а от этого — куда повезут. Доли считаются среди тех, у кого в базе записано, кто вынес приговор.
+    // Национальности со слайда убраны (Илья: «опять латыши, поляки и немцы»), проценты собраны в полосы по 100 %.
+    // Родившиеся за границей — вместо перечня национальностей (Илья: «может, „иностранцы“ или типа того»); гражданства в базе нет, поэтому по месту рождения.
+    const abroadRows = P.filter(x => { const n = geoOf.get(x.p); return n && g37Of(n).abroad; });
+    // Полоса на группу: вся полоса — 100 % группы; красная часть — Военная коллегия, светлая — «тройки» и комиссия НКВД и прокурора, серая — прочие органы.
+    const bodyBar = (label, rows) => { const known = rows.filter(bodyOf), n = known.length, a = pct(known.filter(x => bodyOf(x) === 'vk').length, n),
+      b = pct(known.filter(x => bodyOf(x) === 'tr' || bodyOf(x) === 'kom').length, n), c = Math.max(0, 100 - a - b);
+      return '<p class="lead">' + label + '</p><div class="split"><i style="background:#ff3b2f;flex:' + a + '"></i><i style="background:#c9cbd1;flex:' + b + '"></i>' + (c ? '<i style="background:' + NAT_GREY + ';flex:' + c + '"></i>' : '') + '</div>' +
+        '<p class="quiet"><b style="color:#ff6b5b">' + a + ' %</b> — Военная коллегия · <b style="color:#e8e9ec">' + b + ' %</b> — «тройки» и комиссия' + (c ? ' · ' + c + ' % — другие' : '') + '</p>'; };
+    // дни расстрелов
+    const shotDays = topDay(P), shotDaysN = Object.keys(shotDays[2]).length;
+    // реабилитация: год из поля 14 (годы раньше 1939-го — ошибки записи, не учитываются)
+    const rehY = x => { const y = +(x.p[14] || '').slice(0, 4); return y >= 1939 && y <= 2030 ? y : 0; };
+    const rehRows = P.filter(rehY), rehBy = {}; rehRows.forEach(x => { rehBy[rehY(x)] = (rehBy[rehY(x)] || 0) + 1; });
+    const rehGap = med(rehRows.map(x => rehY(x) - yearOf(x.p[3])).filter(d => d > 0));
+    const rehTint = new Map(); P.forEach(x => rehTint.set(x.p, rehY(x) ? '#e8e9ec' : NAT_GREY));
+    // Переход от слайда обвинений к реабилитации (Илья 2026-11-21: «красивый переход»): точки остаются на местах и того же размера,
+    // а цвета обвинений выцветают в белый — волной от центра города к окраинам. rehOrder — порядок, в котором люди белеют:
+    // по расстоянию от центра с небольшим постоянным разбросом, чтобы край волны не был ровным кругом.
+    const rehOrder = P.map((x, i) => [L.latLng(CITY).distanceTo(x.m.getLatLng()) + ((i * 7919) % 1000) * 1.6, x]).sort((a, b) => a[0] - b[0]).map(a => a[1]);
     const topHouses = bigHouses.slice(0, 4), restHouses = bigHouses.slice(4); // четыре самых больших — каждый своим слайдом, остальные — общим списком (решение Ильи 2026-11-21; было пять)
     const scenes = {
       plain: { list: housesOf(party.no), rows: party.no, city: true, blood: true },
@@ -408,11 +486,11 @@
       inland: { list: [], rows: [], zoom: 5, exact: true, pts: [[64.0, 24.0], [39.0, 24.0], [43.0, 100.0], [64.0, 100.0]], ptsNarrow: [[62.0, 24.0], [40.0, 24.0], [41.0, 62.0]], geo37: geoSu }, // кадр — европейская часть и Сибирь до Красноярска (на телефоне — до Урала): там почти все; линии с востока уходят за край
       natwhere: { list: housesOf(three), rows: three, tint: natAllTint, zoom: 11, pts: gravePts, lines: butLines, linesDim: elseLines,
         places: ['Бутово', 'Коммунарка', 'Донское'].map(k => [GRAVES[k][0], GRAVES[k][1], k + ' — ' + pct(three.filter(x => x.p[4] === k).length, three.length) + ' %']) },
-      chinese: { list: housesOf(chin), rows: chin, city: true, tint: chinTint, hot: '#ff3b2f', blood: true },
+      chinese: { list: housesOf(chin), rows: chin, city: true, tint: chinTint, hot: '#ff3b2f' }, // без крови даже с ?blood (Илья 2026-11-21: «верни обычные точки»)
       natparty: { list: housesOf(byNat.lat), rows: byNat.lat, city: true, tint: latTint },
       sexes: { list: housesOf(men.concat(women)), rows: men.concat(women), city: true, tint: sexTint, hot: SEX_COL.f },
       natall: { list: dots, rows: P, city: true, tint: natAllTint },
-      jail: { list: [], rows: null, zoom: 13, pts: JAILS.map(j => [j[0], j[1]]), places: JAILS.map(j => [j[0], j[1], j[2]]) },
+      jail: { list: [], rows: null, zoom: 13, pts: SPOTS.map(j => [j[0], j[1]]), spots: SPOTS },
       shoot: { list: dots, rows: null, zoom: 11, pts: graveList.map(k => GRAVES[k]).concat([[55.80, 37.62]]), lines: graveLines,
         places: graveList.map(k => [GRAVES[k][0], GRAVES[k][1], k + ' — ' + fmt(inGrave[k])]) },
       party: { list: dots, rows: P, city: true, tint: partyTint },
@@ -420,12 +498,18 @@
       street: { list: street.list, rows: null, zoom: 17, blood: true },
 
       kremlin: { list: housesOf(kremlin), rows: null, zoom: 16, blood: true },
+      when: { list: dots, rows: P, city: true }, // карту здесь ведёт анимация (whenPlay), а не обычная подсветка
+      charges: { list: dots, rows: P, city: true, tint: chTint },
+      night: dayTop ? { list: housesOf(dayTop.rows), rows: dayTop.rows, city: true } : null,
+      rehab: { list: dots, rows: P, city: true, tint: rehTint }, // точки того же размера, что на слайде обвинений: крупные белые сливались в пятна
     };
+    scenes.why = scenes.speed = { list: housesOf(pathRows), rows: pathRows, tint: pathTint, zoom: 11, pts: gravePts, lines: pathRed, linesLight: pathLight,
+      places: ['Коммунарка', 'Донское', 'Бутово'].map(k => [GRAVES[k][0], GRAVES[k][1], k]) };
     // Порядок сцен (утверждает Илья, 2026-11-20): сначала люди — любой возраст, потом «даже свои», потом масштаб.
     const sceneHtml =
       // кто эти враги: любой возраст
       // Подростки и старики — один слайд, на карте все вместе и подписаны (решение Ильи 2026-11-21)
-      sec('<p>' + foe('Врагом') + ' мог оказаться и подросток, и старик.</p>' +
+      sec('<p class="chap">Кого брали</p><p>' + foe('Врагом') + ' мог оказаться и подросток, и старик.</p>' +
         '<p class="lead">Самому младшему было ' + ageMin + ' ' + plural(ageMin, 'год', 'года', 'лет') + '.' +
         (pupils.length ? ' ' + ({ 2: 'Двое', 3: 'Трое', 4: 'Четверо', 5: 'Пятеро' }[pupils.length] || pupils.length) + ' ещё учились в школе.' : '') + '</p>' +
         teens.map(ageLine).join('') +
@@ -468,7 +552,7 @@
         '<div class="hbars">' + NAT_ALL.map(a => natAllBar(a[1], natAllN[a[0]] || 0, a[3])).join('') + natAllBar('другие', natOther, NAT_GREY) + natAllBar('не указана', natNone, NAT_GREY) + '</div>' +
         '<p class="quiet">Точка — человек, цвет — национальность, как она записана в базе.</p>', 'scene', 'natall') +
       // куда: Бутово
-      sec('<p>Жили они вперемешку. Но латышей, поляков и немцев чаще других увозили в одно место — в Бутово.</p>' +
+      sec('<p>Кого куда везли, зависело от того, кем был человек.</p><p>В Бутово чаще других попадали латыши, поляки и немцы.</p>' +
         '<div class="hbars">' + pBar('латыши, поляки, немцы', inBut(three), '#ff3b2f').replace('hbar wide', 'hbar wider') + pBar('все остальные', inBut(rest), NAT_GREY).replace('hbar wide', 'hbar wider') + '</div>' +
         '<p class="quiet">Доля тех, у кого место захоронения — Бутово. Красные линии идут от домов латышей, поляков и немцев в Бутово, серые — в другие места захоронения.</p>' +
         '<p>В Бутове расстреливали без суда, по спискам. Так оформляли «национальные операции» НКВД 1937–1938 годов — аресты по национальному признаку.</p>', 'scene', 'natwhere') +
@@ -497,9 +581,9 @@
         '<p class="big">' + fmt(party.no.length) + '</p>' +
         '<p>' + plural(party.no.length, 'беспартийный', 'беспартийных', 'беспартийных') + ' — больше половины. На карте сейчас только они.</p>' +
         '<div class="hbars">' + plainN.map(([label, n]) => nBar(label, n)).join('') + '</div>' +
-        plainEx.map(x => '<p class="line"><b>' + esc(x.p[1]) + '</b><br>' + (x.p[2] ? x.p[2] + ' – ' : '') + esc(x.p[3]) + ' · ' + esc(jobText(x)) + '<br>' + esc(houseText(x.m.addr)) + '</p>').join('') +
+        plainEx.map(x => '<p class="line"><b>' + esc(x.p[1]) + '</b><br>' + (x.p[2] ? x.p[2] + ' – ' : '') + esc(x.p[3]) + ' · ' + esc(jobText(x)) + '<br>' + esc(houseText(x.m.addr)) + chg(x) + '</p>').join('') +
         '<p class="quiet">Число человек с таким словом в записи о работе; один человек может попасть в две строки, а у многих работа другая. Нажми на точку, чтобы увидеть запись.</p>', 'scene', 'plain') +
-      sec('<p>Расстреливали их по-разному. Партийных чаще везли в Коммунарку, беспартийных — в Бутово.</p>' +
+      sec('<p>Партийных чаще везли в Коммунарку, беспартийных — в Бутово.</p>' +
         '<div class="hbars">' + pBar('члены партии: Коммунарка', inGr(party.in, 'Коммунарка'), '#ff3b2f').replace('hbar wide', 'hbar wider2') + pBar('беспартийные: Коммунарка', inGr(party.no, 'Коммунарка'), NAT_GREY).replace('hbar wide', 'hbar wider2') +
         pBar('беспартийные: Бутово', inGr(party.no, 'Бутово'), '#c9cbd1').replace('hbar wide', 'hbar wider2') + pBar('члены партии: Бутово', inGr(party.in, 'Бутово'), NAT_GREY).replace('hbar wide', 'hbar wider2') + '</div>' +
         '<p>В Коммунарке хоронили в основном тех, кого приговорила Военная коллегия Верховного суда. В Бутове расстреливали без суда, по спискам.</p>' +
@@ -523,31 +607,69 @@
       // сколько: целый дом, целая улица
       sec('<p>На некоторых улицах ' + foe('враги') + ' жили почти в каждом доме.</p>' +
         '<p><b>' + esc(street.name.replace(/\.$/, '')) + '.</b> Номера домов здесь идут до ' + Math.max(...street.nums) + '. Расстрелянные жили в домах под ' + street.nums.size + ' из них.</p>' +
-        '<p>Всего с этой улицы — ' + ppl(street.n) + '.</p><p class="quiet">Сколько домов стояло на улице в те годы, в данных нет. На горящие дома можно нажать.</p>', 'scene', 'street');
+        '<p>Всего с этой улицы — ' + ppl(street.n) + '.</p><p class="quiet">Сколько домов стояло на улице в те годы, в данных нет. На горящие дома можно нажать.</p>', 'scene', 'street') +
+      // ---------- новые слайды по данным дела (структура из шести частей, решение Ильи 2026-11-21) ----------
+      sec('<p>Почти всех расстреляли за два года.</p>' +
+        '<p class="big">' + pct(peakRows.length, P.length) + ' %</p>' +
+        '<p>' + fmt(peakRows.length) + ' из ' + fmt(P.length) + ' человек расстреляны в 1937 и 1938 годах.</p>' +
+        '<p class="whenline"><b data-when></b><span data-whenn></span></p>' +
+        '<p class="quiet">Листай: время идёт вместе с прокруткой. Яркие точки — за кем пришли только что, тусклые — раньше.</p>', 'scene long', 'when') +
+      sec('<p>Каждого из них в чём-то обвинили.</p>' +
+        '<div class="hbars">' + CHARGES.slice().sort((a, b) => (chN[b[0]] || 0) - (chN[a[0]] || 0)).map(a => chBar(a[1], chN[a[0]] || 0, a[3])).join('') + chBar('другое', chN.oth || 0, NAT_GREY) + chBar('нет в базе', chN[''] || 0, NAT_GREY) + '</div>' +
+        '<p class="quiet">Точка — человек, цвет — обвинение, как оно записано в общей базе «Мемориала». Если пунктов несколько, человек отнесён к одному — первому по порядку: шпионаж, террор, агитация, вредительство, заговор и измена, контрреволюция. Обвинение есть в карточке каждого: нажми на точку.</p>', 'scene', 'charges') +
+      (dayTop ? sec('<p class="chap">Как брали</p><p>Приходили сразу по всему городу.</p>' +
+        '<p class="big">' + dayTop.rows.length + '</p>' +
+        '<p>' + plural(dayTop.rows.length, 'человек с этой карты арестован', 'человека с этой карты арестованы', 'человек с этой карты арестованы') + ' за один день, ' + isoText(dayTop.d) + '.</p>' +
+        '<p class="quiet">На карте — дома, куда пришли в этот день. Это день, когда арестов было больше всего.</p>', 'scene', 'night') : '') +
+      sec('<p>Куда везли, решал приговор.</p>' +
+        '<p><b style="color:#ff6b5b">Военная коллегия Верховного суда</b> — ' + ppl(vkRows.length) + '. Расстреливали в день приговора. Хоронили в Коммунарке (' + fmt(inG(vkRows, 'Коммунарка')) + ') и на Донском (' + fmt(inG(vkRows, 'Донское')) + ').</p>' +
+        '<p><b>«Тройки» и комиссия НКВД и прокурора</b> — ' + ppl(massRows.length) + '. Приговор выносили заочно, списком. Везли в Бутово (' + fmt(inG(massRows, 'Бутово')) + ').</p>' +
+        '<p class="quiet">Красные линии — от домов приговорённых Военной коллегией, светлые — «тройками» и комиссией.</p>', 'scene', 'speed') +
+      sec('<p>А кто вынесет приговор, зависело от того, кем был человек.</p>' +
+        bodyBar('Члены партии', party.in) + bodyBar('Беспартийные', party.no) + bodyBar('Родившиеся за границей', abroadRows) +
+        '<p>Поэтому партийных чаще хоронили в Коммунарке и на Донском, а беспартийных и родившихся за границей — в Бутове.</p>' +
+        '<p class="quiet">Каждая полоса — все люди этой группы, у кого в базе записано, кто вынес приговор. «За границей» — по месту рождения в границах 1937 года: гражданства в базе нет. Карта та же: красные — приговорённые Военной коллегией, светлые — «тройками» и комиссией.</p>', 'scene', 'why') +
+      sec('<p>Потом почти все эти обвинения отменили.</p>' +
+        '<p class="big white">' + fmt(rehRows.length) + '</p>' +
+        '<p>' + plural(rehRows.length, 'человек', 'человека', 'человек') + ' из ' + fmt(P.length) + ' ' + plural(rehRows.length, 'реабилитирован', 'реабилитированы', 'реабилитированы') + '.</p>' +
+        '<p>Шпионов, террористов и вредителей среди них не было. Но узнали об этом поздно: половину реабилитировали не раньше чем через ' + rehGap + ' ' + plural(rehGap, 'год', 'года', 'лет') + ' после расстрела.</p>' +
+        '<p class="quiet">Белые точки на карте — реабилитированные. Серые — те, о чьей реабилитации в базе сведений нет.</p>', 'scene', 'rehab');
     box.className = 'tale';
     box.innerHTML =
       // ---------- что тогда происходило (черновик, факты не сверены) ----------
       sec('<p class="where">Москва, 1930-е годы</p><p>Страной единолично правит Сталин.</p>' +
         '<p>Власть ищет <b class="foe">врагов</b>. Врагом могут объявить за происхождение, за национальность, за неосторожное слово, по доносу соседа. Или просто потому, что нужно выполнить план.</p>' +
-        '<p class="cue">Листай вниз ↓</p>' +
-        '<p class="draft">Черновик. Исторические сведения в этом тексте не сверены с источниками.</p>', 'first') +
+        '<p class="cue">Листай вниз ↓</p>', 'first') + // пометку «Черновик» Илья убрал 2026-11-21; сведения этого слайда по-прежнему не сверены (см. docs/concept.md)
       // ---------- весь город ----------
       sec('<p>Это карта одного города.</p><div class="big white" data-n>0</div><p data-l>человек</p>' +
         '<p class="quiet">Каждая точка — расстрелянный человек, там, где он жил. Имена и адреса собрал «Мемориал».</p>', 'city') +
       sceneHtml +
-      sec('<p>Дальше со всеми происходило одно и то же.</p><p>Арестованного держат в тюрьме: на Лубянке, в Бутырской, Лефортовской, Таганской.</p>' +
-        '<p>Суда нет. Дело решают без него самого, без защитника, без права обжаловать: заочно — «тройка» из трёх человек, или за несколько минут — Военная коллегия на Никольской, 23.</p>' +
-        '<p class="quiet">На карте — тюрьмы и дом Военной коллегии.</p>', 'scene', 'jail') +
-      sec('<p>Приговор — расстрел.</p><p>Его исполняют в ближайшие дни. Семье ничего не сообщают.</p>' +
-        '<p>Расстреливают за городом, в Бутове и Коммунарке, и в самой Москве. Тела расстрелянных в городе сжигают в крематории на Донском кладбище.</p>' +
-        '<p class="quiet">Линии идут от домов к местам захоронения, которые записаны в базе: ' + graveList.map(k => esc(k) + ' — ' + fmt(inGrave[k])).join(', ') + '.</p>', 'scene', 'shoot') +
+      sec('<p class="chap">Что было дальше</p><p>Арестованного везли в тюрьму. В какую — зависело от того, кто вёл дело.</p>' +
+        '<p><i class="spot" style="background:' + COL_UN + '"></i><b>Московское управление НКВД.</b> Оно вело массовые операции — так было у большинства. Приговор выносила «тройка»: заочно, без протокола.</p>' +
+        '<p><i class="spot" style="background:' + COL_CA + '"></i><b>Центральный аппарат НКВД.</b> Он вёл дела высокопоставленных арестованных. Приговор выносила Военная коллегия: от 5 до 30 минут на человека, без защитника и свидетелей.</p>' +
+        '<p>Бутырская тюрьма принимала и тех, и других.</p>' +
+        '<p class="quiet">Нажми на точку на карте — там справка о месте.</p>' +
+        srcLine(['unkvd', 'lub2', 'vkvs', 'rog']), 'scene', 'jail') +
+      sec('<p>Приговор — расстрел.</p><p>Семье о нём не сообщали. Родным говорили: «десять лет без права переписки».</p>' +
+        '<p>В один только день, ' + dayText(shotDays[0]) + ', расстреляли ' + ppl(shotDays[1]) + ' с этой карты.</p>' +
+        '<p class="quiet">Линии идут от домов к местам захоронения, которые записаны в базе: ' + graveList.map(k => esc(k) + ' — ' + fmt(inGrave[k])).join(', ') + '.</p>' + srcLine(['unkvd']), 'scene', 'shoot') +
       // ---------- посетитель: сначала занятие, потом возраст (порядок поменял Илья 2026-11-21) ----------
       // «Врагом мог стать и ты» — слова Ильи
-      sec('<p><b class="foe">Врагом</b> мог оказаться кто угодно: инженер, учитель, рабочий, студент.</p><p><b class="foe">Врагом</b> мог стать и ты.</p>' +
+      sec('<p class="chap">А ты?</p><p><b class="foe">Врагом</b> мог оказаться кто угодно: инженер, учитель, рабочий, студент.</p><p><b class="foe">Врагом</b> мог стать и ты.</p>' +
         '<div class="q">Кем ты работаешь?</div><div class="chips">' + JOBS.map((j, k) => '<button data-k="' + k + '">' + j[0] + '</button>').join('') + '</div><div class="ans"></div>', 'ask job') +
       sec('<label class="q" for="s-age">Сколько тебе лет?</label><input id="s-age" type="number" inputmode="numeric" min="1" max="120" autocomplete="off"><div class="ans"></div>', 'ask age') +
       // ---------- финал: таблички ----------
       sec('', 'ask fin');
+    // Порядок слайдов — шесть частей (решение Ильи 2026-11-21): город и время; кого брали и в чём обвиняли; как брали; что было дальше;
+    // после; «а ты?». Слайды собраны выше в прежнем порядке и переставляются здесь; слайды, которых нет в списке
+    // («мужчины и женщины», «самыми партийными были латыши»), убираются. Правки Ильи того же дня: дома и улица — сразу после Кремля,
+    // расстрел — перед слайдами о том, чем места отличаются, реабилитация — до вопросов посетителю.
+    const ORDER = ['.first', '.city', 'when', 'ages', 'born', 'abroad', 'inland', 'village', 'natall', 'chinese', 'party', 'plain', 'kremlin',
+      'house0', 'house1', 'house2', 'house3', 'house', 'street', 'charges', 'rehab', 'night', 'jail', 'shoot', 'speed', 'why', '.job', '.fin']; // блок о возрасте Илья убрал: остался только вопрос о занятии
+    const pick = k => box.querySelector(k[0] === '.' ? '.step' + k : '.step[data-scene="' + k + '"]');
+    const ordered = ORDER.map(pick).filter(Boolean);
+    [...box.querySelectorAll('.step')].forEach(el => { if (!ordered.includes(el)) el.remove(); });
+    ordered.forEach(el => box.appendChild(el));
     const $ = s => box.querySelector(s);
     const city = $('.city'), ageS = $('.age'), jobS = $('.job'), finS = $('.fin'), steps = [...box.querySelectorAll('.step')];
 
@@ -722,6 +844,12 @@
       if (sc.linesLight) extraLayers.push(new Lines(sc.linesLight, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#c9cbd1', weight: 1, opacity: 0.03 }).addTo(map));
       if (sc.linesDim) extraLayers.push(new Lines(sc.linesDim, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#9a9ca3', weight: 1, opacity: 0.03 }).addTo(map));
       if (sc.lines) extraLayers.push(new Lines(sc.lines, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#ff3b2f', weight: 1, opacity: 0.035 }).addTo(map));
+      (sc.spots || []).forEach(([lat, lon, label, col, ring, note, src, side]) => { // side — куда поставить подпись, если соседние точки рядом: l — слева, u — выше, d — ниже // места со справкой: цветная точка нажимается
+        const c = L.circleMarker([lat, lon], { renderer: map.getRenderer(dots[0]), interactive: true, radius: 7, color: ring || '#0e0f11', weight: ring ? 3 : 2, fillColor: col, fillOpacity: 1 });
+        c.bindPopup('<div class="born-pop"><b>' + esc(label) + '</b><br>' + esc(note) + '<br><a class="spot-src" href="' + SRC[src][1] + '" target="_blank" rel="noopener">' + SRC[src][0] + '</a></div>', { maxWidth: 300, autoPan: false });
+        extraLayers.push(c.addTo(map));
+        extraLayers.push(L.marker([lat, lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'place tag', iconSize: [0, 0], html: '<i></i><span style="' + (side === 'l' ? 'left:auto;right:12px' : side === 'u' ? 'left:6px;top:-25px' : side === 'd' ? 'left:6px;top:8px' : 'left:12px') + '">' + esc(label) + '</span>' }) }).addTo(map));
+      });
       (sc.places || []).forEach(([lat, lon, label]) => extraLayers.push(L.marker([lat, lon], { interactive: false, keyboard: false,
         icon: L.divIcon({ className: sc.tags ? 'place tag' : 'place', iconSize: [0, 0], html: '<i></i><span>' + esc(label) + '</span>' }) }).addTo(map)));
     };
@@ -756,6 +884,41 @@
     // карточка занятия идёт первой: на карте все с тем же занятием; на карточке возраста — ровесники
     const jobState = () => S.rows ? setLit('job' + S.ver, housesOf(S.rows), S.rows) : setLit('all', dots, null);
     const ageState = () => S.same ? setLit('age' + S.ver, housesOf(S.same), S.same) : jobState();
+    // Слайд «когда»: время привязано к прокрутке (решение Ильи 2026-11-21; сначала шло само). Карточка высокая (класс long) и «прилипает»,
+    // пока лента проходит её высоту; доля пройденного — это место на шкале от января 1936 до июня 1939 года.
+    // На карте кровью — арестованные за последние 30 дней до этой даты.
+    const WHEN_COL = ['#ff3b2f', '#b02a22', '#74201b', '#4a1815']; // от недавних арестов к давним
+    let whenShown = -1; const DAY = 864e5, W0 = Date.UTC(1936, 0, 1), W1 = Date.UTC(1939, 5, 30), whenEl = box.querySelector('[data-when]'), whenN = box.querySelector('[data-whenn]');
+    const whenPlay = q => {
+      if (key !== 'when') { key = 'when'; whenShown = -1; map.closePopup(); clearTimeout(fadeT); wantX = null; extras(null); dotPane.style.opacity = 1; }
+      const step = Math.round(Math.max(0, Math.min(1, q)) * (W1 - W0) / (5 * DAY)); if (step === whenShown) return; // шаг шкалы — пять дней
+      whenShown = step;
+      // Арестованные не исчезают с карты, а тускнеют (Илья: «затухание, чтобы был виден нарастающий масштаб, а не ёлочная гирлянда»):
+      // за последние 30 дней — яркие, дальше три ступени темнее; старше восьми месяцев — самые тусклые, но остаются.
+      const t = W0 + step * 5 * DAY, rows = [], tint = new Map(); let fresh = 0;
+      for (const a of arrSorted) { if (a[0] > t) break; const age = (t - a[0]) / DAY; rows.push(a[1]); if (age <= 30) fresh++;
+        tint.set(a[1].p, age <= 30 ? WHEN_COL[0] : age <= 90 ? WHEN_COL[1] : age <= 240 ? WHEN_COL[2] : WHEN_COL[3]); }
+      story = { lit: new Set(rows.map(x => x.m)), big: false, match: new Set(rows.map(x => x.p)), tint, hot: true, blood: false };
+      redrawDots();
+      const d = new Date(t); if (whenEl) whenEl.textContent = MONTHS_NOM[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); if (whenN) whenN.textContent = ' · арестовано ' + fmt(rows.length);
+    };
+    // реабилитация после обвинений: цвета выцветают в белый волной от центра; с любого другого слайда — обычная смена
+    let rehT = 0;
+    const rehabPlay = sc => {
+      if (key === 'scene:rehab') return;
+      if (key !== 'scene:charges') return setLit('scene:rehab', sc.list, sc.rows, sc.tint, sc.hot);
+      key = 'scene:rehab'; map.closePopup(); clearTimeout(fadeT); clearInterval(rehT); dotPane.style.opacity = 1;
+      const t0 = performance.now(), tint = new Map(chTint), all = new Set(P.map(x => x.p)), lit = new Set(dots); let done = 0;
+      const tick = () => {
+        if (!story || key !== 'scene:rehab') return clearInterval(rehT);
+        const f = Math.min(1, (performance.now() - t0) / 2400), upto = Math.round(f * f * (3 - 2 * f) * rehOrder.length);
+        for (; done < upto; done++) tint.set(rehOrder[done].p, rehTint.get(rehOrder[done].p));
+        story = { lit, big: false, match: all, tint, hot: null, blood: false, pools: null };
+        redrawDots();
+        if (f >= 1) clearInterval(rehT);
+      };
+      rehT = setInterval(tick, 80); tick();
+    };
     const update = () => {
       queued = false;
       if (!story) return; // вступление пропущено
@@ -776,10 +939,12 @@
         flyCamera(v[0], v[1], { done: () => { setTimeout(() => { inFlight = false; }, 50); } });
       }
       lastAct = act;
+      if (act.dataset.scene === 'when') { const r = act.getBoundingClientRect(); return whenPlay((mark - (r.top - boxTop)) / Math.max(1, r.height - vh * 0.35)); }
+      if (act.dataset.scene === 'rehab') return rehabPlay(sc);
       if (sc) return setLit('scene:' + act.dataset.scene, sc.list, sc.rows, sc.tint, sc.hot);
       // финал: красные — те, у кого на доме есть табличка «Последнего адреса», остальные серые
-      if (top(finS) < mark) return plaqueTint ? setLit('fin', dots, P, plaqueTint, '#ff3b2f') : setLit('all', dots, null);
-      if (top(ageS) < mark) return ageState();
+      if (top(finS) < mark) return plaqueTint ? setLit('fin', dots, P, plaqueTint, '#f5b83d') : setLit('all', dots, null);
+      if (ageS && top(ageS) < mark) return ageState();
       if (top(jobS) < mark) return jobState();
       // «карта одного города»: дома загораются от центра к окраинам, пока карточка входит в экран; назад — гаснут
       const q = Math.max(0, Math.min(1, (vh * 0.75 - top(city)) / (vh * 0.45))), want = Math.round(q * q * order.length);
@@ -834,7 +999,7 @@
     };
 
     // ---------- возраст ----------
-    const ageIn = $('#s-age'), ageAns = ageS.querySelector('.ans');
+    const ageIn = $('#s-age') || document.createElement('input'), ageAns = ageS ? ageS.querySelector('.ans') : document.createElement('div'); // карточки возраста сейчас нет в ленте
     let ageTimer = 0, job = null;
     const answerAge = () => {
       const v = Math.round(+ageIn.value);
@@ -890,7 +1055,7 @@
       finS.querySelector('.card').innerHTML = (plaques
         ? '<p class="cta">У ' + fmt(plaques) + ' расстрелянных на доме есть табличка «Последнего адреса».</p>' +
           '<p class="cta">У ' + fmt(P.length - plaques) + ' — нет.</p>' +
-          '<p class="quiet">На карте красные — те, у кого табличка есть. Серые — все остальные.</p>' +
+          '<p class="quiet">На карте жёлтые — те, у кого табличка есть. Серые — все остальные.</p>' +
           '<p class="cta">Подать заявку на табличку может любой.</p>'
         : '<p class="cta">На карте ' + fmt(P.length) + ' расстрелянных.</p>') +
         '<div class="go">' + (plaques ? '<a class="btn" href="https://www.poslednyadres.ru/zayavka/" target="_blank" rel="noopener">Как подать заявку</a>' : '') +
@@ -902,7 +1067,7 @@
     fetch('data/last_address.json').then(r => r.json()).then(d => {
       const set = new Set(d.people), has = x => set.has(x.p[1] + '|' + (x.p[2] || ''));
       fin(P.filter(has).length);
-      plaqueTint = new Map(); P.forEach(x => plaqueTint.set(x.p, has(x) ? '#ff3b2f' : '#55575d'));
+      plaqueTint = new Map(); P.forEach(x => plaqueTint.set(x.p, has(x) ? '#f5b83d' : '#55575d')); // таблички — жёлтые (решение Ильи 2026-11-21; были красные)
       update(); // если посетитель уже на финале, карта перекрашивается сразу
     }).catch(() => {});
 
