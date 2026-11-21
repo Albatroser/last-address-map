@@ -2,9 +2,13 @@
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Расстрелы в Москве — карта</title>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="story.css?v=20261122a">
+<link rel="stylesheet" href="story.css?v=20261122c">
 <style>
 html,body,#map{margin:0;height:100%;background:#0e0f11}
+/* Жесты: щипок и сдвиг пальцем не должны увеличивать и таскать всю страницу (Илья 2026-11-22) — они принадлежат карте и ленте.
+   pan-x pan-y у страницы запрещает браузеру только общий зум щипком; прокрутка внутри ленты, окон и списков остаётся. */
+html,body{touch-action:pan-x pan-y;overscroll-behavior:none}
+#map{touch-action:none}
 .leaflet-container{background:#0e0f11}
 .st{position:absolute;white-space:nowrap;text-align:center;font:10px/12px system-ui,sans-serif;color:#5a5c62;letter-spacing:.08em;text-transform:uppercase}
 #search{position:absolute;z-index:650;top:12px;left:56px;right:12px;max-width:440px;font:14px/1.4 system-ui,sans-serif}
@@ -48,6 +52,13 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 #time>*{pointer-events:auto}
 #time-btn{background:rgba(15,15,15,.85);color:#ddd;border:1px solid #444;border-radius:6px;padding:7px 12px;font:inherit;cursor:pointer}
 #time-panel{background:rgba(15,15,15,.9);border-radius:6px;padding:10px 12px 6px;margin-bottom:8px}
+/* таблички «Последнего адреса»: кнопка рядом с таймлайном и подпись над кнопками */
+#plq-btn{background:rgba(15,15,15,.85);color:#ddd;border:1px solid #444;border-radius:6px;padding:7px 12px;font:inherit;cursor:pointer;margin-top:6px}
+#plq-btn i,#plq-note i{display:inline-block;width:9px;height:9px;border-radius:50%;background:#f5b83d;margin-right:7px}
+#plq-btn.on{border-color:#f5b83d;color:#fff}
+#plq-note{background:rgba(15,15,15,.9);border-radius:6px;padding:8px 12px;margin-bottom:8px;color:#ccc;font-size:12.5px}
+#plq-note a{color:#f5b83d}
+.pp .plq{color:#f5b83d}
 #time-head b{color:#fff}
 #time-track{position:relative;height:24px;margin-top:12px;--n:32}
 #time-strip{position:absolute;top:5px;height:14px;display:flex;gap:1px;left:calc(9px - (100% - 18px) / (2 * var(--n)));right:calc(9px - (100% - 18px) / (2 * var(--n)))}
@@ -103,14 +114,14 @@ html,body,#map{margin:0;height:100%;background:#0e0f11}
 <div id="story-veil"></div><div id="story"></div><a id="story-skip">Пропустить</a>
 <div id="search" hidden><input id="q" type="search" placeholder="Улица или адрес" autocomplete="off" aria-label="Поиск по адресу"><div id="hits"></div></div>
 <div id="msg" hidden></div>
-<div id="time"><div id="time-panel" hidden><div id="time-head"></div><div id="time-track"><div id="time-strip"></div><input id="time-range" type="range" step="1" aria-label="Год"></div><div id="time-ticks"></div></div><button id="time-btn" hidden>Таймлайн</button></div>
+<div id="time"><div id="time-panel" hidden><div id="time-head"></div><div id="time-track"><div id="time-strip"></div><input id="time-range" type="range" step="1" aria-label="Год"></div><div id="time-ticks"></div></div><div id="plq-note" hidden></div><button id="time-btn" hidden>Таймлайн</button> <button id="plq-btn" hidden><i></i>Таблички «Последнего адреса»</button></div>
 <!-- ?v=… у своих файлов — номер выпуска: его нужно менять при каждой заливке, иначе браузеры (особенно на телефонах) держат старые файлы из кеша -->
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="i18n_dict.js?v=20261122a"></script>
-<script src="i18n_dict2.js?v=20261122a"></script>
-<script src="i18n.js?v=20261122a"></script>
-<script src="map.js?v=20261122a"></script>
-<script src="blood.js?v=20261122a"></script>
-<script src="view3d.js?v=20261122a"></script>
-<script src="story.js?v=20261122a"></script>
+<script src="i18n_dict.js?v=20261122c"></script>
+<script src="i18n_dict2.js?v=20261122c"></script>
+<script src="i18n.js?v=20261122c"></script>
+<script src="map.js?v=20261122c"></script>
+<script src="blood.js?v=20261122c"></script>
+<script src="view3d.js?v=20261122c"></script>
+<script src="story.js?v=20261122c"></script>
 </body></html>

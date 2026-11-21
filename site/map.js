@@ -196,7 +196,7 @@ const Flock = L.CircleMarker.extend({
     if (window.BLOOD && window.BLOOD()) return; // эксперимент ?blood: на слайде об одном городе людей рисует слой жидкости (blood.js), маркер остаётся только для нажатий
     const ctx = r._ctx, p = this._point, st = this._step(), c = st * 0.6, rad = Math.max(0.6, st * 0.36), k = this._count();
     ctx.globalAlpha = o.fillColor === GREY ? 0.4 : 0.9;
-    const hot = story && (story.side ? story.side(this).hot : story.hot);
+    const hot = story ? (story.side ? story.side(this).hot : story.hot) : plaquesOn ? YELLOW : null; // на свободной карте с табличками жёлтые точки крупнее: иначе издалека их не видно
     const cols = this.cols && this.cols.length === k ? this.cols : null; // цвета точек по одной на человека (одинаковые идут подряд)
     for (let i = 0; i < k;) {
       const col = cols ? cols[i] : o.fillColor;
@@ -218,6 +218,12 @@ let pickedHouse = null; // дом, окно которого сейчас отк
 let pickedStreet = null; // набор домов улицы, выбранной в поиске, или null
 const shown = m => pickedYear ? (m.byYear[pickedYear] || 0) : m.n;
 const RED = '#ff3b2f', GREY = '#8d8f94';
+// Таблички «Последнего адреса» на свободной карте (Илья 2026-11-22): кнопка под картой перекрашивает в жёлтый точки людей,
+// у которых на доме есть табличка. Данные те же, что на последнем слайде вступления: data/last_address.json
+// (scripts/build_last_address.py), человек узнаётся по ФИО и году рождения. plaqueSet — набор таких людей, появляется после загрузки.
+const YELLOW = '#f5b83d';
+let plaquesOn = false, plaqueSet = null;
+const hasPlaque = p => !!plaqueSet && plaqueSet.has(p[1] + '|' + (p[2] || ''));
 // Вступление (story.js): пока оно идёт, story = { lit: набор домов, которые горят, big: крупные ли точки,
 // match: набор людей, подошедших под ответы посетителя (в окне дома выделены только они), или null };
 // остальные дома не видны. После вступления story = null и карта работает как обычно.
@@ -249,6 +255,10 @@ function redrawDots() {
   dots.forEach(m => {
     const n = shown(m), on = house ? m === house : n && (!pickedStreet || pickedStreet.has(m));
     m.k = on || !filtered ? (n || m.n) : m.n; m.options.minStep = 0; m.cols = null; // сколько точек рисовать: при выбранном годе — расстрелянные в этот год
+    if (plaquesOn && m.plN && (on || !filtered)) { // таблички: у красного дома жёлтые точки — люди с табличкой (при выбранном годе — только расстрелянные в этот год)
+      const list = pickedYear && n ? m.pl.filter((v, i) => yearOf(m.ppl[i][3]) === pickedYear) : m.pl;
+      if (list.length === m.k && list.some(Boolean)) { m.cols = list.map(v => v ? YELLOW : RED).sort(); bright.push(m); }
+    }
     if (!filtered) m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, dotStyle(n)));
     else if (on) { // такой же полупрозрачный красный круг, как обычно
       const st = dotStyle(n || m.n);
@@ -455,6 +465,7 @@ function popupHtml(addr, people) {
       const rest = [
         apt ? T('кв. ') + esc(apt) + (inApt[apt] > 1 ? T(' (в этой квартире расстреляно #)', inApt[apt]) : '') : '',
         bur ? T('захоронение: ') + esc(TV(bur)) : '',
+        plaquesOn && hasPlaque(p) ? '<span class="plq">' + T('есть табличка «Последнего адреса»') + '</span>' : '',
         TO(born) ? T('род.: ') + esc(TO(born)) : '', esc(TO(nat)), esc(TO(party)),
       ].filter(Boolean).join(' · ');
       const sep = dim && !sepDone ? (sepDone = true, '<div class="other">' + T(inStory ? 'Другие расстрелянные по этому адресу' : 'Расстреляны в другие годы') + '</div>') : '';
@@ -688,6 +699,31 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     if (panel.hidden && pickedYear) pick(0); // закрытый таймлайн не должен незаметно менять карту
   };
   pick(0);
+
+  // ---------- таблички «Последнего адреса»: кнопка рядом с таймлайном ----------
+  // Файл с табличками грузится при первом нажатии. Число в подписи считается так же, как на последнем слайде вступления:
+  // сколько людей с карты есть в списке файла; дата — дата выгрузки таблицы с сайта проекта (поле date).
+  const plqBtn = document.getElementById('plq-btn'), plqNote = document.getElementById('plq-note');
+  let plqInfo = null;
+  const plqShow = () => {
+    plqBtn.classList.toggle('on', plaquesOn);
+    plqNote.hidden = !plaquesOn;
+    if (plaquesOn && plqInfo) plqNote.innerHTML = '<i></i>' + T('Жёлтые точки — люди, у которых на доме есть табличка «Последнего адреса»: # из #. Таблички: сайт проекта, #.', I18N.num(fmt(plqInfo.n)), I18N.num(fmt(people)), plqInfo.date.split('-').reverse().join('.')) +
+      ' <a href="https://www.poslednyadres.ru/zayavka/" target="_blank" rel="noopener">' + T('Как подать заявку') + '</a>';
+    redrawDots();
+    if (map._popup && map._popup.isOpen()) map._popup.update();
+  };
+  plqBtn.hidden = false;
+  plqBtn.onclick = () => {
+    plaquesOn = !plaquesOn;
+    if (plaqueSet || !plaquesOn) return plqShow();
+    fetch('data/last_address.json').then(r => r.json()).then(d => {
+      plaqueSet = new Set(d.people); let n = 0;
+      dots.forEach(m => { m.pl = m.ppl.map(hasPlaque); m.plN = m.pl.filter(Boolean).length; n += m.plN; });
+      plqInfo = { n, date: d.date || '' };
+      plqShow();
+    }).catch(e => { plaquesOn = false; plqShow(); say(T('Данные не загрузились: ') + e.message); });
+  };
   performance.mark('la-map');
   window.storyData = true; // данные готовы — можно начинать вступление (story.js)
   if (window.startStory) window.startStory();
