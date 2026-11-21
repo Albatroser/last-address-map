@@ -20,8 +20,10 @@
     map.invalidateSize({ animate: false }); // на телефоне карта во вступлении занимала только верх экрана
     unhook();
     flight++; // идущий перелёт камеры останавливается
+    mapEl.style.transition = ''; mapEl.style.opacity = ''; // если вступление сняли посреди затемнения перед сменой вида
     if (typeof View3D !== "undefined") View3D.hide(); // объёмный вид дома, если он был открыт
     const hl = document.getElementById('house-list'); if (hl) hl.remove();
+    if (map.getZoom() < 10) map.setView([55.7539, 37.6208], 12, { animate: false }); // вступление сняли на карте Европы или страны: свободная карта открывается на городе, а не в пустом месте
     map.setMinZoom(10); // вступлению разрешалось отъезжать дальше (слайд о местах рождения)
     document.body.classList.remove('story-move');
     const op = map.getPane('overlayPane'); op.style.transition = ''; op.style.opacity = '';
@@ -61,7 +63,7 @@
     ['Не работаю', 'без работы, пенсионеры, домохозяйки', /без определенных занятий|безработн|пенсионер|домохозяйк|домашняя хозяйка|иждивен|инвалид|не работал/],
   ];
 
-  window.startStory = function () {
+  window.startStory = function () { performance.mark('la-story0');
     // все люди на карте: дом, запись, возраст в год расстрела (по году рождения, точность — год), занятие
     const P = [];
     dots.forEach(m => m.ppl.forEach(p => {
@@ -705,7 +707,7 @@
     };
     let viewKey = 'city';
     // посетитель сам сдвинул или приблизил карту — на следующем слайде камера возвращается, даже если вид тот же
-    let userMoved = false, inFlight = false, lastAct = null;
+    let userMoved = false, inFlight = false, lastAct = null, jumpT = 0;
     const onUserMove = () => { if (!inFlight) userMoved = true; };
     map.on('dragend zoomend', onUserMove);
     // дополнения сцены: подписанные места, которых нет в базе, и линии от домов к местам захоронения
@@ -735,9 +737,14 @@
     // Обычная ломаная карты рисует все линии одним штрихом, и наложение тогда зависит от экрана: при плотности пикселей 1
     // браузер складывает тонкие линии, а на телефонах (плотность 2–3) — нет, и весь веер остаётся еле видным.
     // Поэтому каждая линия рисуется отдельным штрихом: наложение одинаковое на любом экране.
+    // Пока камера летит (map._laFlying ставит flyCamera в map.js), полный набор линий не пересчитывается и не рисуется:
+    // несколько тысяч линий стоили 25–35 мс на каждый кадр полёта на быстром компьютере (замер 2026-11-21). В полёте вместо
+    // него виден прореженный набор (options.inFlight: каждая N-я линия, плотнее цветом), по прилёте — снова полный.
     const Lines = L.Polyline.extend({
+      _project() { if (this._map && this._map._laFlying && !this.options.inFlight && this._rings) return; L.Polyline.prototype._project.call(this); },
       _updatePath() {
         const r = this._renderer; if (!r._drawing || !this._parts || !this._parts.length) return;
+        const fly = !!(this._map && this._map._laFlying); if (this.options.inFlight ? !fly : fly && this.options.thinned) return;
         const ctx = r._ctx, o = this.options;
         ctx.save(); ctx.globalAlpha = o.opacity; ctx.strokeStyle = o.color; ctx.lineWidth = o.weight; ctx.lineCap = "butt";
         for (const part of this._parts) { ctx.beginPath(); ctx.moveTo(part[0].x, part[0].y); for (let i = 1; i < part.length; i++) ctx.lineTo(part[i].x, part[i].y); ctx.stroke(); }
@@ -746,6 +753,12 @@
     });
     // Список жильцов на слайде дома — своя панель поверх объёмного вида. Обычное окно карты тут не годится:
     // оно принадлежит слою карты и оказывается под объёмным видом, то есть открывается невидимым.
+    // линии сцены: полный набор и, если линий много, прореженный — для полёта камеры
+    const addLines = (ls, o) => {
+      const n = Math.ceil(ls.length / 500), R = map.getRenderer(dots[0]);
+      extraLayers.push(new Lines(ls, Object.assign({ renderer: R, interactive: false, weight: 1, thinned: n > 1 }, o)).addTo(map));
+      if (n > 1) extraLayers.push(new Lines(ls.filter((l, i) => i % n === 0), Object.assign({ renderer: R, interactive: false, weight: 1, inFlight: true }, o, { opacity: Math.min(0.5, o.opacity * Math.min(n, 4)) })).addTo(map));
+    };
     let listEl = null;
     const closeList = () => { if (listEl) { listEl.remove(); listEl = null; } };
     const openList = m => {
@@ -808,7 +821,7 @@
           if (free) extraLayers.push(L.marker([g.lat, g.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'place tag geo' + (g.lon > 110 ? ' lft' : ''), iconSize: [0, 0],
             html: '<i></i><span style="' + (g.lon > 110 ? 'right:' : 'left:') + (r + 4).toFixed(0) + 'px"><b>' + esc(g.name) + '</b> ' + fmt(g.n) + '</span>' }) }).addTo(map)); // на востоке подпись слева, иначе уходит за край
         });
-        (sc.geo37.lineSets || []).forEach(([ls, col, op]) => extraLayers.push(new Lines(ls, { renderer: R0, interactive: false, color: col, weight: 1, opacity: op }).addTo(map)));
+        (sc.geo37.lineSets || []).forEach(([ls, col, op]) => addLines(ls, { color: col, opacity: op }));
         (sc.geo37.dots || []).forEach(g => { // точка на человека; нажатие открывает список родившихся в этом месте
           const f = new Scatter([g.lat, g.lon], { renderer: R0, interactive: true, color: g.col || '#ff3b2f', fillColor: g.col || '#ff3b2f', fillOpacity: 1, weight: 0 });
           f.town = g.town; f.pts = g.pts; f.n = g.n; f.small = !!g.col;
@@ -842,9 +855,9 @@
         });
       }
       if (sc.build) raiseHouse(sc.build, sc);
-      if (sc.linesLight) extraLayers.push(new Lines(sc.linesLight, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#c9cbd1', weight: 1, opacity: 0.03 }).addTo(map));
-      if (sc.linesDim) extraLayers.push(new Lines(sc.linesDim, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#9a9ca3', weight: 1, opacity: 0.03 }).addTo(map));
-      if (sc.lines) extraLayers.push(new Lines(sc.lines, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#ff3b2f', weight: 1, opacity: 0.035 }).addTo(map));
+      if (sc.linesLight) addLines(sc.linesLight, { color: '#c9cbd1', opacity: 0.03 });
+      if (sc.linesDim) addLines(sc.linesDim, { color: '#9a9ca3', opacity: 0.03 });
+      if (sc.lines) addLines(sc.lines, { color: '#ff3b2f', opacity: 0.035 });
       (sc.spots || []).forEach(([lat, lon, label, col, ring, note, src, side]) => { // side — куда поставить подпись, если соседние точки рядом: l — слева, u — выше, d — ниже // места со справкой: цветная точка нажимается
         const c = L.circleMarker([lat, lon], { renderer: map.getRenderer(dots[0]), interactive: true, radius: 7, color: ring || '#0e0f11', weight: ring ? 3 : 2, fillColor: col, fillOpacity: 1 });
         c.bindPopup('<div class="born-pop"><b>' + esc(label) + '</b><br>' + esc(note) + '<br><a class="spot-src" href="' + SRC[src][1] + '" target="_blank" rel="noopener">' + SRC[src][0] + '</a></div>', { maxWidth: 300, autoPan: false });
@@ -936,8 +949,16 @@
       if (vk !== viewKey || (userMoved && act !== lastAct)) {
         viewKey = vk; userMoved = false;
         const v = vk === 'city' ? cityView : viewOf(sc);
-        inFlight = true;
-        flyCamera(v[0], v[1], { done: () => { setTimeout(() => { inFlight = false; }, 50); } });
+        inFlight = true; clearTimeout(jumpT);
+        // Дальний переход (город ↔ карта Европы или страны, и между этими картами) — без полёта: карта гаснет, вид меняется
+        // разом, карта проявляется (решение Ильи 2026-11-21). Полёт с тысячами линий был самым тяжёлым местом вступления.
+        if (Math.abs(map.getZoom() - v[1]) >= 3 || map.getZoom() < 9 || v[1] < 9) {
+          mapEl.style.transition = 'opacity .25s'; mapEl.style.opacity = 0;
+          jumpT = setTimeout(() => { if (!story) return; jumpCamera(v[0], v[1]); mapEl.style.opacity = 1; setTimeout(() => { inFlight = false; }, 50); }, 270);
+        } else {
+          mapEl.style.opacity = 1;
+          flyCamera(v[0], v[1], { done: () => { setTimeout(() => { inFlight = false; }, 50); } });
+        }
       }
       lastAct = act;
       if (act.dataset.scene === 'when') { const r = act.getBoundingClientRect(); return whenPlay((mark - (r.top - boxTop)) / Math.max(1, r.height - vh * 0.35)); }
@@ -997,6 +1018,7 @@
     unhook = () => {
       document.removeEventListener('wheel', onWheel); document.removeEventListener('touchstart', onTouchStart);
       document.removeEventListener('touchmove', onTouchMove); window.removeEventListener('resize', ask);
+      clearTimeout(jumpT); extras(null); // линии, точки мест и подписи сцены не должны оставаться на свободной карте
     };
 
     // ---------- возраст ----------
@@ -1075,6 +1097,7 @@
     story = { lit: new Set(), big: false, match: null }; redrawDots(); // в начале все дома погашены
     box.scrollTop = 0;
     update();
+    performance.mark('la-story1');
   };
   if (window.storyData) window.startStory(); // данные загрузились раньше этого файла
 })();
