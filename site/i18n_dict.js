@@ -46,6 +46,9 @@ window.I18N_T = {
   "в базе нет расстрелянных с известным адресом": ["no one with a known address in the database", "en la base no hay fusilados con dirección conocida"],
   "Все годы": ["All years", "Todos los años"],
   "никого": ["no one", "nadie"],
+  "Таблички «Последнего адреса»": ["Last Address plaques", "Placas de «Última Dirección»"],
+  "есть табличка «Последнего адреса»": ["has a Last Address plaque", "tiene placa de «Última Dirección»"],
+  "Жёлтые точки — люди, у которых на доме есть табличка «Последнего адреса»: # из #. Таблички: сайт проекта, #.": ["Yellow dots are people who have a Last Address plaque on their building: # of #. Plaques: the project's website, #.", "Los puntos amarillos son las personas que tienen en su edificio una placa de «Última Dirección»: # de #. Placas: sitio web del proyecto, #."],
 
   // ---------- вступление: начало ----------
   "Москва, #-е годы": ["Moscow, the #s", "Moscú, década de #"],
