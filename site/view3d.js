@@ -4,7 +4,10 @@
 //   • нужный дом — по контурам и этажности из data/house_shapes.json (OpenStreetMap), высота этажа 3,3 м;
 //   • окружающие дома — контуры из подложки (data/base/), высоты у них в данных нет, взята условная 10–18 м;
 //   • облик фасадов не воспроизводится: на стенах только линии этажей.
-// Используется из story.js: View3D.show({ map, rings, center }), View3D.hide().
+// Используется из story.js: View3D.show({ map, rings, center, view }), View3D.hide().
+// view — конечное положение камеры для этого дома: { az, el, k }. az — с какой стороны смотреть (градусы по компасу:
+// 0 — камера к северу от дома, 90 — к востоку, 180 — к югу), el — угол подъёма камеры над землёй в градусах,
+// k — множитель расстояния. Без view сторона выбирается сама, а камера стоит на уровне глаз.
 const View3D = (() => {
   const FLOOR = 3.3, FOV = 50 * Math.PI / 180, EYE = 2.2;
   let cv = null, ctx = null, raf = 0, token = 0;
@@ -25,7 +28,7 @@ const View3D = (() => {
     const a = poly[i], b = poly[j]; if ((a[1] > pt[1]) !== (b[1] > pt[1]) && pt[0] < (b[0] - a[0]) * (pt[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
 
   let onPick = null;
-  function show({ map, rings, center, onClick }) {
+  function show({ map, rings, center, onClick, view }) {
     ensure();
     onPick = onClick || null; // нажатие на вид дома (мышью) открывает список жильцов
     cv.style.pointerEvents = onPick && window.matchMedia('(pointer: fine)').matches ? 'auto' : 'none'; cv.style.cursor = onPick ? 'pointer' : '';
@@ -55,10 +58,13 @@ const View3D = (() => {
       // с какой стороны смотреть: там, где между камерой и домом меньше всего чужих зданий; при равенстве — с юга
       const fp0 = (cv.clientHeight / 2) / Math.tan(FOV / 2);
       // расстояние: дом должен занять свободную от текста часть кадра (около 0,36 ширины экрана в каждую сторону)
-      const D = Math.max(60, Math.min(430, ext * fp0 / ((cv.clientWidth >= 760 ? 0.36 : 0.38) * cv.clientWidth)));
-      const eye = Math.max(EYE, D * 0.03); // издалека камера стоит чуть выше, иначе большой дом сливается в полоску
+      const D0 = Math.max(60, Math.min(430, ext * fp0 / ((cv.clientWidth >= 760 ? 0.36 : 0.38) * cv.clientWidth))) * (view && view.k ? (cv.clientWidth >= 760 ? view.k : 1 + (view.k - 1) * 0.4) : 1); // на телефоне кадр уже и ниже — камера ближе, иначе дом мелкий
+      const el = view && view.el ? view.el * Math.PI / 180 : 0;
+      const D = D0 * Math.cos(el); // расстояние по земле; при взгляде сверху камера ближе к дому по земле и выше
+      const eye = Math.max(EYE, D0 * 0.03, D0 * Math.sin(el)); // издалека камера стоит чуть выше, иначе большой дом сливается в полоску
       let best = null;
-      for (let k = 0; k < 16; k++) {
+      if (view && view.az != null) { const az = view.az * Math.PI / 180; best = { block: 0, px: cx0 + Math.sin(az) * D, py: cy0 + Math.cos(az) * D }; }
+      for (let k = 0; k < 16 && !(view && view.az != null); k++) {
         const az = Math.PI + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 8; // от юга по сторонам
         const px = cx0 + Math.sin(az) * D, py = cy0 + Math.cos(az) * D;
         let block = 0;
@@ -87,7 +93,7 @@ const View3D = (() => {
         // камера: из точки над домом — к точке на земле перед домом; высота падает быстрее в конце
         const ex = best.px + Math.cos((now - t0) / 5200) * 0 + (cy0 - best.py) * sway, ey = best.py - (cx0 - best.px) * sway;
         const C = [mix(cx0, ex, t), mix(cy0 - 0.01, ey, t), mix(h0, eye, Math.pow(t, 0.75))];
-        const T = [cx0, cy0, mix(0, H * 0.42, t)];
+        const T = [cx0, cy0, mix(0, H * (el > 0.2 ? 0.25 : 0.42), t)];
         const f = norm(sub(T, C)), upHint = norm([0, 1 - t, t]);
         const r = norm(cross(f, upHint)), u = cross(r, f);
         const pcx = mix(startPt.x, w >= 760 ? w * 0.66 : w * 0.5, t), pcy = mix(startPt.y, w >= 760 ? h * 0.56 : h * 0.6, t); // на телефоне холст — только верхняя часть экрана, дом стоит посередине
