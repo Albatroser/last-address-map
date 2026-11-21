@@ -163,7 +163,9 @@ body.story-on.story-move #map{cursor:grab}
   body.story-on #map{height:42vh;height:42dvh}
   #view3d{height:42vh!important;height:42dvh!important;bottom:auto!important}
   #story-skip{top:10px;right:10px;padding:7px 10px;background:rgba(14,15,17,.75);border-radius:14px;color:#aaa;text-decoration:none}
-  #story{top:42vh;top:42dvh;font-size:16px;line-height:1.45;background:#0e0f11;border-top:1px solid #2b2d33;box-shadow:0 -14px 22px rgba(14,15,17,.85)}
+  /* pointer-events:auto — лента на телефоне листается пальцем в любом месте, а не только по тексту карточки (Илья 2026-11-22: «палец немного
+     в другом месте — не скролится»). На широком экране лента лежит поверх карты и пропускает нажатия сквозь себя, здесь под ней ничего нет. */
+  #story{top:42vh;top:42dvh;font-size:16px;line-height:1.45;background:#0e0f11;border-top:1px solid #2b2d33;box-shadow:0 -14px 22px rgba(14,15,17,.85);pointer-events:auto;touch-action:pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
   #story .step,#story .step.first,#story .step.city,#story .step.ask{min-height:58vh;min-height:58dvh;padding:22px 18px 84px;align-items:flex-start}
   #story .step{opacity:.3;transition:opacity .35s}
   #story .step.act{opacity:1}
