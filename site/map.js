@@ -535,17 +535,22 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     slider.classList.toggle('idle', !y);
     [...strip.children].forEach(c => c.classList.toggle('on', +c.dataset.y === y));
     const n = byYear[y] || 0;
-    head.innerHTML = !y ? '<b>' + y0 + '–' + y1 + '</b> — все годы. Двигайте ползунок, чтобы выделить год на карте.'
+    head.innerHTML = !y ? '<b>' + y0 + '–' + y1 + '</b> — все годы. Чем краснее клетка, тем больше расстрелянных за год. Двигайте ползунок, чтобы выделить год на карте.'
       : '<b>' + y + '</b> — ' + (n ? ppl(n) + ', ' + hs(housesIn[y]) : 'в базе нет расстрелянных с известным адресом') + ' <button id="time-all">Все годы</button>';
     const all = document.getElementById('time-all'); if (all) all.onclick = () => pick(0);
   }
-  // линия под ползунком: по одинаковой клетке на год, без цвета по числу расстрелянных (так решил Илья)
+  // Линия под ползунком: клетка на год, цвет — по числу расстрелянных за этот год (решение Ильи 2026-11-21; раньше клетки были одинаковыми).
+  // Шкала логарифмическая: в 1937 и 1938 годах расстрелянных тысячи, в остальные — единицы и десятки, на прямой шкале их не было бы видно.
+  // От тёмно-серого (никого) через тёмно-красный к ярко-красному (самый страшный год).
+  const yMax = Math.max(...ys.map(y => byYear[y])), mixc = (a, b, t) => Math.round(a + (b - a) * t);
+  const yearColor = n => { if (!n) return '#2a2b30'; const t = Math.log(1 + n) / Math.log(1 + yMax); return 'rgb(' + mixc(74, 255, t) + ',' + mixc(40, 59, t) + ',' + mixc(40, 47, t) + ')'; };
   for (let y = y0; y <= y1; y++) {
-    const c = document.createElement('i');
-    c.dataset.y = y; c.title = y;
+    const c = document.createElement('i'), n = byYear[y] || 0;
+    c.dataset.y = y; c.title = y + ' — ' + (n ? ppl(n) : 'никого');
+    c.style.background = yearColor(n);
     strip.appendChild(c);
   }
-  // На линии подсвечиваются годы, когда расстреливали жильцов открытого дома; если дом не открыт, а в поиске
+  // На линии отмечаются белой рамкой годы, когда расстреливали жильцов открытого дома; если дом не открыт, а в поиске
   // выбрана улица — годы по всем её домам. Подсветка только «был такой год или нет», без числа.
   markYears = () => {
     const open = map._popup && map._popup.isOpen() && map._popup._source;
