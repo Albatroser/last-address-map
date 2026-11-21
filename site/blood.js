@@ -18,10 +18,11 @@
   // обычные точки: там, где несколько цветов, кровь смешивает их в муть. Кровью рисуются выделенные (красные) люди;
   // остальные на том же слайде остаются мелкими серыми точками, как и без этой пробы.
   // story.pools — источники капель не из домов, [широта, долгота, число людей]; сейчас ни один слайд их не задаёт.
-  const on = () => !!story && (story.blood === 'city' || (ALL && !!story.blood));
-  const houses = () => on() && !story.pools;
+  // свободная карта (вступления нет, story пуст) — кровь всегда (решение Ильи 2026-11-21)
+  const on = () => story ? story.blood === 'city' || (ALL && !!story.blood) : true;
+  const houses = () => on() && !(story && story.pools);
   window.BLOOD = houses;
-  window.BLOOD_POOLS = () => on() && !!story.pools;
+  window.BLOOD_POOLS = () => on() && !!(story && story.pools);
   let cleared = true, lastMode = null, poolSrc = null, poolObjs = null;
   const BLOOD = '#b3100c'; // кровь — выделенные (красные) люди
   const KS = 0.004, KR = 0.5, DAMP = 0.78;  // пружина к адресу, расталкивание, трение (за кадр)
@@ -56,7 +57,8 @@
 
   let lastKey = '', lastSt = 0, still = 0, prevTl = null, prevZ = null, W = 0, H = 0, dprNow = 0;
   const palette = [], palIdx = new Map();
-  const colorOf = c => { c = c === RED ? BLOOD : c; // не выделенные люди остаются своим серым цветом и мельче, как у обычных точек
+  const DIMMED = '#414246'; // приглушённые точки (GREY в map.js рисуется с прозрачностью 0,4): фильтр слоя делает всё непрозрачным, поэтому цвет заранее смешан с фоном
+  const colorOf = c => { c = c === RED ? BLOOD : c === GREY ? DIMMED : c; // не выделенные люди остаются своим серым цветом и мельче, как у обычных точек
     let i = palIdx.get(c); if (i === undefined) { i = palette.length; palette.push(c); palIdx.set(c, i); } return i; };
 
   function frame() {
@@ -67,7 +69,7 @@
     cleared = false;
     // источники капель: дома или лужи сцены
     let pools = null;
-    if (story.pools) {
+    if (story && story.pools) {
       if (poolSrc !== story.pools) { poolSrc = story.pools; let b = N; poolObjs = poolSrc.map(([lat, lon, cnt]) => { const p = map.project([lat, lon], 0), o = { n: Math.min(cnt, 2 * N - b), _b0: b, _mx: p.x, _my: p.y, _kPrev: 0, _bst: 0 }; b += o.n; return o; }); }
       pools = poolObjs;
     }

@@ -399,7 +399,7 @@
     const topHouses = bigHouses.slice(0, 5), restHouses = bigHouses.slice(5); // пять самых больших — каждый своим слайдом
     const scenes = {
       plain: { list: housesOf(party.no), rows: party.no, city: true, blood: true },
-      house: { list: restHouses, rows: null, zoom: 14, blood: true },
+      house: { list: restHouses, rows: null, zoom: 14, blood: 'city' }, // 'city' — кровь без ?blood, как на слайде «Это карта одного города» (Илья 2026-11-21)
       house0: { list: [], rows: null, zoom: 18, build: topHouses[0] }, house1: { list: [], rows: null, zoom: 18, build: topHouses[1] },
       house2: { list: [], rows: null, zoom: 18, build: topHouses[2] }, house3: { list: [], rows: null, zoom: 18, build: topHouses[3] },
       house4: { list: [], rows: null, zoom: 18, build: topHouses[4] },
@@ -548,12 +548,11 @@
       sec('<p>Приговор — расстрел.</p><p>Его исполняют в ближайшие дни. Семье ничего не сообщают.</p>' +
         '<p>Расстреливают за городом, в Бутове и Коммунарке, и в самой Москве. Тела расстрелянных в городе сжигают в крематории на Донском кладбище.</p>' +
         '<p class="quiet">Линии идут от домов к местам захоронения, которые записаны в базе: ' + graveList.map(k => esc(k) + ' — ' + fmt(inGrave[k])).join(', ') + '.</p>', 'scene', 'shoot') +
-      // ---------- посетитель: возраст ----------
+      // ---------- посетитель: сначала занятие, потом возраст (порядок поменял Илья 2026-11-21) ----------
       // «Врагом мог стать и ты» — слова Ильи
       sec('<p><b class="foe">Врагом</b> мог оказаться кто угодно: инженер, учитель, рабочий, студент.</p><p><b class="foe">Врагом</b> мог стать и ты.</p>' +
-        '<label class="q" for="s-age">Сколько тебе лет?</label><input id="s-age" type="number" inputmode="numeric" min="1" max="120" autocomplete="off"><div class="ans"></div>', 'ask age') +
-      // ---------- посетитель: занятие ----------
-      sec('<div class="q">Кем ты работаешь?</div><div class="chips">' + JOBS.map((j, k) => '<button data-k="' + k + '">' + j[0] + '</button>').join('') + '</div><div class="ans"></div>', 'ask job') +
+        '<div class="q">Кем ты работаешь?</div><div class="chips">' + JOBS.map((j, k) => '<button data-k="' + k + '">' + j[0] + '</button>').join('') + '</div><div class="ans"></div>', 'ask job') +
+      sec('<label class="q" for="s-age">Сколько тебе лет?</label><input id="s-age" type="number" inputmode="numeric" min="1" max="120" autocomplete="off"><div class="ans"></div>', 'ask age') +
       // ---------- финал: таблички ----------
       sec('', 'ask fin');
     const $ = s => box.querySelector(s);
@@ -753,15 +752,17 @@
       dotPane.style.opacity = 0;
       fadeT = setTimeout(() => {
         story = { lit: new Set(list), big: list.length <= 400 || !!(rows && rows.length <= 1500), match: rows ? new Set(rows.map(x => x.p)) : null, tint: tint || null, hot: hot || null,
+          // весь город без выделения (вопросы до ответа) — кровь по умолчанию ('city'), как на «Это карта одного города»
           // проба ?blood (blood.js): на каких слайдах люди рисуются кровью, выбирал Илья 2026-11-21; pools — точки карты СССР для того же слоя
-          blood: wantX ? !!wantX.blood : !rows && !tint, pools: wantX && wantX.blood && wantX.geo37 && wantX.geo37.dots ? bloodPools(wantX.geo37) : null };
+          blood: wantX ? wantX.blood || false : !rows && !tint ? 'city' : false, pools: wantX && wantX.blood && wantX.geo37 && wantX.geo37.dots ? bloodPools(wantX.geo37) : null };
         redrawDots();
         extras(wantX);
         dotPane.style.opacity = 1;
       }, 290);
     };
-    const ageState = () => S.same ? setLit('age' + S.ver, housesOf(S.same), S.same) : setLit('all', dots, null);
-    const jobState = () => S.rows ? setLit('job' + S.ver, housesOf(S.rows), S.rows) : ageState();
+    // карточка занятия идёт первой: на карте все с тем же занятием; на карточке возраста — ровесники
+    const jobState = () => S.rows ? setLit('job' + S.ver, housesOf(S.rows), S.rows) : setLit('all', dots, null);
+    const ageState = () => S.same ? setLit('age' + S.ver, housesOf(S.same), S.same) : jobState();
     const update = () => {
       queued = false;
       if (!story) return; // вступление пропущено
@@ -785,8 +786,8 @@
       if (sc) return setLit('scene:' + act.dataset.scene, sc.list, sc.rows, sc.tint, sc.hot);
       // финал: красные — те, у кого на доме есть табличка «Последнего адреса», остальные серые
       if (top(finS) < mark) return plaqueTint ? setLit('fin', dots, P, plaqueTint, '#ff3b2f') : setLit('all', dots, null);
-      if (top(jobS) < mark) return jobState();
       if (top(ageS) < mark) return ageState();
+      if (top(jobS) < mark) return jobState();
       // «карта одного города»: дома загораются от центра к окраинам, пока карточка входит в экран; назад — гаснут
       const q = Math.max(0, Math.min(1, (vh * 0.75 - top(city)) / (vh * 0.45))), want = Math.round(q * q * order.length);
       if (key !== 'grow') {
@@ -846,7 +847,7 @@
       const v = Math.round(+ageIn.value);
       if (!v || v < 1 || v > 120) return;
       S.same = P.filter(x => x.age === v); S.ver++;
-      const n = S.same.length;
+      const n = S.same.length, mine = job ? S.same.filter(job.test).length : 0;
       // когда: годы расстрелов этих людей и сколько из них пришлось на 1937–1938
       const ys = S.same.map(x => yearOf(x.p[3])), y0 = Math.min(...ys), y1 = Math.max(...ys);
       const peak = ys.filter(y => y === 1937 || y === 1938).length;
@@ -854,9 +855,10 @@
         ? '<div class="big">' + fmt(n) + '</div><p>' + plural(n, 'человек', 'человека', 'человек') + ' ' + shotVerb(n) + ' в твоём возрасте — в ' + v + ' ' + plural(v, 'год', 'года', 'лет') + '.</p>' +
           '<p>' + (y0 === y1 ? plural(n, 'Расстрелян', 'Расстреляны', 'Расстреляны') + ' в ' + y0 + ' году.'
             : 'Их расстреливали с ' + y0 + ' по ' + y1 + ' год' + (peak ? ', ' + (peak === n ? 'всех' : fmt(peak)) + ' — в 1937 и 1938' : '') + '.') + '</p>' +
+          (job ? '<p>' + (mine ? fmt(mine) + ' из них ' + plural(mine, 'занимался', 'занимались', 'занимались') + ' тем же, что и ты.' : 'Тем же, что и ты, никто из них не занимался.') + '</p>' : '') +
           '<p class="quiet">На карте остались их дома, на них можно нажать. Возраст посчитан по году рождения, с точностью до года.</p>'
         : '<p>Среди расстрелянных нет твоих ровесников.</p><p class="quiet">Самому младшему было ' + ageMin + ', самому старшему — ' + ageMax + '.</p>';
-      if (job) answerJob(); else update();
+      update();
     };
     ageIn.oninput = () => { clearTimeout(ageTimer); ageTimer = setTimeout(answerAge, 700); };
     ageIn.onkeydown = e => { if (e.key === 'Enter') { clearTimeout(ageTimer); answerAge(); ageIn.blur(); } };
@@ -872,16 +874,13 @@
       };
     });
     function answerJob() {
-      const all = P.filter(job.test), mine = S.same ? S.same.filter(job.test) : [];
-      const rows = mine.length ? mine : all, one = rows.length ? best(rows) : null;
-      S.rows = rows.length ? rows : null; S.ver++;
-      jobAns.innerHTML = (mine.length ? '<div class="big">' + fmt(mine.length) + '</div><p>из твоих ровесников занимались тем же, что и ты.</p>'
-        : !all.length ? '<p>В базе таких нет.</p>'
-        : S.same ? '<p>Твоих ровесников среди них нет. Но тем же, что и ты, занимались ' + fmt(all.length) + ' расстрелянных.</p>'
-        : '<div class="big">' + fmt(all.length) + '</div><p>' + plural(all.length, 'расстрелянный занимался', 'расстрелянных занимались', 'расстрелянных занимались') + ' тем же, что и ты.</p>') +
-        (all.length ? '<p class="quiet">' + job.many[0].toUpperCase() + job.many.slice(1) + (mine.length ? '. Всех возрастов — ' + fmt(all.length) : '') +
-          '. Подсчёт грубый: по словам в описании человека.</p>' : '') +
+      const all = P.filter(job.test), one = all.length ? best(all) : null;
+      S.rows = all.length ? all : null; S.ver++;
+      jobAns.innerHTML = (all.length ? '<div class="big">' + fmt(all.length) + '</div><p>' + plural(all.length, 'расстрелянный занимался', 'расстрелянных занимались', 'расстрелянных занимались') + ' тем же, что и ты.</p>' +
+          '<p class="quiet">' + job.many[0].toUpperCase() + job.many.slice(1) + '. Подсчёт грубый: по словам в описании человека.</p>'
+        : '<p>В базе таких нет.</p>') +
         (one ? '<p class="lead">Один из них:</p>' + person(one) : '');
+      if (S.same) return answerAge(); // возраст уже назван — строка о занятии в его ответе пересчитывается
       update();
     }
 
