@@ -63,7 +63,6 @@ body.story-on.story-move #map{cursor:grab}
 #house-list .leaflet-popup-content{max-height:none;width:auto!important;margin:14px 16px;overflow-y:auto;flex:1}
 #house-list .x{position:absolute;top:6px;right:8px;z-index:1;background:none;border:0;color:#aaa;font:22px/1 system-ui,sans-serif;cursor:pointer;padding:2px 6px}
 #house-list .x:hover{color:#fff}
-@media(max-width:759px){#house-list{top:auto;left:8px;right:8px;bottom:8px;width:auto;height:62vh}}
 /* окно со списком родившихся в одном месте */
 .born-pop{font:13px/1.4 system-ui,sans-serif}
 .born-list{max-height:260px;overflow-y:auto;margin-top:8px;padding-right:6px}
@@ -131,13 +130,39 @@ body.story-on.story-move #map{cursor:grab}
 #story .go button:hover{border-color:#fff}
 #story .go .btn{border:1px solid #ff3b2f;background:#ff3b2f;border-radius:6px;color:#fff;font:inherit;padding:8px 18px;text-decoration:none}
 #story .go .btn:hover{background:#ff5347;border-color:#ff5347}
+/* ---------- телефон (уже 760 px) ----------
+   Текст поверх карты на узком экране закрывает её целиком, поэтому экран поделён: сверху карта (42 % высоты),
+   под ней — лента с текстом на сплошном фоне. Карта стоит на месте, листается только текст; карточка, к которой
+   сейчас относится карта, яркая, остальные приглушены. Окно дома и список жильцов открываются панелью на месте ленты. */
 @media (max-width:759px){
-  #story{font-size:17px;background:linear-gradient(rgba(14,15,17,.15),rgba(14,15,17,.7))}
-  #story .step{padding:0 20px 14vh;align-items:flex-end}
-  #story .step.ask{padding-top:30vh;padding-bottom:10vh}
-  #story .step.long .card{top:38vh}
-  #story .ask .card{background:rgba(14,15,17,.82);border-radius:10px;padding:16px;box-sizing:border-box}
-  #story .where{font-size:26px}
-  #story .big{font-size:36px}
-  #story .big.white{font-size:40px}
+  body.story-on #map{height:42vh;height:42dvh}
+  #view3d{height:42vh!important;height:42dvh!important;bottom:auto!important}
+  #story-skip{top:10px;right:10px;padding:7px 10px;background:rgba(14,15,17,.75);border-radius:14px;color:#aaa;text-decoration:none}
+  #story{top:42vh;top:42dvh;font-size:16px;line-height:1.45;background:#0e0f11;border-top:1px solid #2b2d33;box-shadow:0 -14px 22px rgba(14,15,17,.85)}
+  #story .step,#story .step.first,#story .step.city,#story .step.ask{min-height:58vh;min-height:58dvh;padding:22px 18px 30px;align-items:flex-start}
+  #story .step{opacity:.3;transition:opacity .35s}
+  #story .step.act{opacity:1}
+  #story .step+.step{border-top:1px solid #1f2126}
+  #story .card{max-width:none}
+  #story .scene .card{font-size:16px}
+  #story .scene .card>p:first-child{font-size:20px;line-height:1.3}
+  #story .age .card>p:first-child,#story .age .card>p:nth-child(2){font-size:17px}
+  #story .where{font-size:24px}
+  #story .big{font-size:34px}
+  #story .big.white{font-size:38px}
+  #story .q{font-size:20px;margin-top:0}
+  #story .cta{font-size:20px}
+  #story .cue{margin-top:18px}
+  #story .hbars,#story .split{max-width:none}
+  #story .hbar.wider2{font-size:13px}
+  #story .hbar.wider2 span{width:166px}
+  #story .hbar.wider{flex-wrap:wrap;row-gap:2px}
+  #story .hbar.wider span{width:100%}
+  #story .listbtn{padding:9px 16px}
+  #story .chips button{padding:8px 13px}
+  #story .go button,#story .go .btn{padding:11px 18px}
+  #house-list{top:42vh;top:42dvh;left:0;right:0;bottom:0;width:auto;height:auto;border-width:1px 0 0;border-radius:14px 14px 0 0;background:#17181b}
+  #house-list .leaflet-popup-content{font-size:14px;margin:16px 18px 24px}
+  #house-list .x{top:8px;right:10px;width:38px;height:38px;background:#26282d;border-radius:50%;padding:0}
+  .place span{font-size:11px}
 }

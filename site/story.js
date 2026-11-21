@@ -17,6 +17,7 @@
     story = null;
     dots.forEach(m => { m.options.interactive = true; });
     document.body.classList.remove('story-on');
+    map.invalidateSize({ animate: false }); // на телефоне карта во вступлении занимала только верх экрана
     unhook();
     flight++; // идущий перелёт камеры останавливается
     if (typeof View3D !== "undefined") View3D.hide(); // объёмный вид дома, если он был открыт
@@ -160,7 +161,7 @@
       natAllTint.set(x.p, g ? g[3] : NAT_GREY);
     });
     const natAllMax = Math.max(...NAT_ALL.map(a => natAllN[a[0]] || 0));
-    const natAllBar = (label, n, col) => '<div class="hbar wide"><span>' + label + '</span><i style="background:' + col + ';width:' + (n / natAllMax * 100).toFixed(1) + '%"></i><b>' + fmt(n) + '</b></div>';
+    const natAllBar = (label, n, col) => '<div class="hbar wide"><span>' + label + '</span><i style="background:' + col + ';width:' + (n / natAllMax * 180).toFixed(0) + 'px"></i><b>' + fmt(n) + '</b></div>';
     // дома со справками (site/data/house_notes.json — это дома, где расстреляно 20 человек и больше), от самых больших
     // Из них Илья убрал дома, не связанные с властью (отбор ручной, по названиям справок, 2026-11-21);
     // дома политкаторжан и дом иностранных специалистов он оставил.
@@ -510,7 +511,8 @@
 
     // ---------- карта под лентой ----------
     veil.classList.add('clear', 'pass');
-    map.setMinZoom(2.5); // слайд о местах рождения отъезжает далеко от Москвы; после вступления возвращается 10
+    map.setMinZoom(wide() ? 2.5 : 1.8); // на телефоне карта узкая, СССР целиком входит только с масштаба около 2
+    // слайд о местах рождения отъезжает далеко от Москвы; после вступления возвращается 10
     HANDLERS.forEach(h => map[h] && map[h].disable()); // колёсико листает ленту, а не приближает карту
     // Мышью карту можно двигать и приближать (перетаскивание, двойной щелчок, кнопки + и −): на следующем слайде
     // камера сама вернётся куда нужно. На телефоне палец листает ленту, поэтому там карта неподвижна.
@@ -518,7 +520,9 @@
     if (canMove) { map.dragging.enable(); map.doubleClickZoom.enable(); }
     document.body.classList.toggle('story-move', canMove);
     map.closePopup();
-    // город — чуть правее середины экрана, слева от него идёт текст (на телефоне — посередине)
+    // город — чуть правее середины экрана, слева от него идёт текст.
+    // На телефоне (уже 760 px) карта — отдельная верхняя часть экрана, текст листается в панели под ней
+    // (story.css): город стоит посередине карты и отступов под текст не нужно.
     const z = wide() ? 12 : 11, shift = wide() ? 0.1 : 0;
     map.setView(map.unproject(map.project(CITY, z).subtract([map.getSize().x * shift, 0]), z), z, { animate: false });
     const cityView = [map.getCenter(), z];
@@ -527,7 +531,8 @@
       const shp = sc.build && shapeOf(sc.build), kxs = Math.cos(55.75 * Math.PI / 180);
       const ptsB = shp ? shp.reduce((a, [lv, ring]) => a.concat(ring, ring.map(q => upBy(q, lv * FLOOR, kxs))), []) : null;
       const size = map.getSize(), b = L.latLngBounds(ptsB || sc.pts || (sc.list.length ? sc.list.map(m => m.getLatLng()) : [sc.build.getLatLng()]));
-      const tl = L.point(wide() ? Math.min(540, size.x * 0.46) : 24, 70), br = L.point(wide() ? 50 : 24, wide() ? 60 : size.y * 0.5);
+      // на телефоне справа оставлено место подписям к точкам, сверху — кнопке «Пропустить»
+      const tl = wide() ? L.point(Math.min(540, size.x * 0.46), 70) : L.point(22, 34), br = wide() ? L.point(50, 60) : L.point(sc.places || sc === scenes.abroad ? 96 : 22, 22);
       const snap = map.options.zoomSnap; if (sc.exact) map.options.zoomSnap = 0; // этому виду нужен дробный масштаб, чтобы кадр занял всё свободное место
       const zz = Math.max(map.getMinZoom(), Math.min(sc.zoom, map.getBoundsZoom(b, false, tl.add(br))));
       map.options.zoomSnap = snap;
@@ -559,6 +564,19 @@
       },
       // нажатие: у городской россыпи или рядом с любой из разбросанных точек
       _containsPoint(q) { return q.distanceTo(this._point) <= this._hit || (this._px || []).some(t => Math.abs(t.x - q.x) < 5 && Math.abs(t.y - q.y) < 5); },
+    });
+    // Линии от домов к местам захоронения. Каждая линия почти прозрачна, яркость набирается там, где линий много.
+    // Обычная ломаная карты рисует все линии одним штрихом, и наложение тогда зависит от экрана: при плотности пикселей 1
+    // браузер складывает тонкие линии, а на телефонах (плотность 2–3) — нет, и весь веер остаётся еле видным.
+    // Поэтому каждая линия рисуется отдельным штрихом: наложение одинаковое на любом экране.
+    const Lines = L.Polyline.extend({
+      _updatePath() {
+        const r = this._renderer; if (!r._drawing || !this._parts || !this._parts.length) return;
+        const ctx = r._ctx, o = this.options;
+        ctx.save(); ctx.globalAlpha = o.opacity; ctx.strokeStyle = o.color; ctx.lineWidth = o.weight; ctx.lineCap = "butt";
+        for (const part of this._parts) { ctx.beginPath(); ctx.moveTo(part[0].x, part[0].y); for (let i = 1; i < part.length; i++) ctx.lineTo(part[i].x, part[i].y); ctx.stroke(); }
+        ctx.restore();
+      },
     });
     // Список жильцов на слайде дома — своя панель поверх объёмного вида. Обычное окно карты тут не годится:
     // оно принадлежит слою карты и оказывается под объёмным видом, то есть открывается невидимым.
@@ -633,9 +651,9 @@
         });
       }
       if (sc.build) raiseHouse(sc.build, sc);
-      if (sc.linesLight) extraLayers.push(L.polyline(sc.linesLight, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#c9cbd1', weight: 1, opacity: 0.03 }).addTo(map));
-      if (sc.linesDim) extraLayers.push(L.polyline(sc.linesDim, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#9a9ca3', weight: 1, opacity: 0.03 }).addTo(map));
-      if (sc.lines) extraLayers.push(L.polyline(sc.lines, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#ff3b2f', weight: 1, opacity: 0.035 }).addTo(map));
+      if (sc.linesLight) extraLayers.push(new Lines(sc.linesLight, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#c9cbd1', weight: 1, opacity: 0.03 }).addTo(map));
+      if (sc.linesDim) extraLayers.push(new Lines(sc.linesDim, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#9a9ca3', weight: 1, opacity: 0.03 }).addTo(map));
+      if (sc.lines) extraLayers.push(new Lines(sc.lines, { renderer: map.getRenderer(dots[0]), interactive: false, color: '#ff3b2f', weight: 1, opacity: 0.035 }).addTo(map));
       (sc.places || []).forEach(([lat, lon, label]) => extraLayers.push(L.marker([lat, lon], { interactive: false, keyboard: false,
         icon: L.divIcon({ className: sc.tags ? 'place tag' : 'place', iconSize: [0, 0], html: '<i></i><span>' + esc(label) + '</span>' }) }).addTo(map)));
     };
@@ -667,10 +685,12 @@
     const update = () => {
       queued = false;
       if (!story) return; // вступление пропущено
-      const vh = box.clientHeight, top = el => el.getBoundingClientRect().top, mark = vh * 0.6;
-      // какая карточка сейчас главная: последняя, чей верх поднялся выше 60 % высоты экрана
+      // высоты считаются от верха ленты: на телефоне она начинается не от верха экрана, а под картой
+      const vh = box.clientHeight, boxTop = box.getBoundingClientRect().top, top = el => el.getBoundingClientRect().top - boxTop, mark = vh * (wide() ? 0.6 : 0.45);
+      // какая карточка сейчас главная: последняя, чей верх поднялся выше 60 % высоты ленты (на телефоне — 45 %)
       let act = steps[0];
       for (const el of steps) { if (top(el) < mark) act = el; else break; }
+      if (act !== lastAct) { if (lastAct) lastAct.classList.remove('act'); act.classList.add('act'); } // на телефоне остальные карточки приглушены
       const sc = scenes[act.dataset.scene];
       wantX = sc || null;
       // камера: к сцене — перелёт к её домам, иначе — вид на весь город
@@ -706,7 +726,7 @@
     box.addEventListener('scroll', ask, { passive: true });
     // Лента пропускает нажатия к карте (кроме самих карточек), поэтому колёсико ведёт этот код, а не браузер:
     // так прокрутка одинаково плавная над текстом и над картой. Палец над картой тоже листает ленту.
-    const popup = e => e.target.closest && e.target.closest('.leaflet-popup, #house-list');
+    const popup = e => e.target.closest && e.target.closest('.leaflet-popup, #house-list, .sheet');
     let target = 0, moving = false, last = 0, put = 0; // put — куда ленту поставил этот код в прошлый раз
     const glide = now => { // лента догоняет цель; скорость считается по времени, а не по кадрам
       const d = target - box.scrollTop, k = 1 - Math.exp(-Math.min(200, now - last) / 80);

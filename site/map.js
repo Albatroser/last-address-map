@@ -152,8 +152,9 @@ map.attributionControl.addAttribution('Люди и адреса: «Мемори�
 const search = document.getElementById('search');
 function say(text) { const el = document.getElementById('msg'); el.textContent = text; el.hidden = false; }
 // окно дома не должно оставаться под строкой поиска: после штатного сдвига карты проверяем и досдвигаем
+const phone = () => window.innerWidth < 760; // узкий экран: окно дома — панель снизу (см. ниже «телефон»)
 map.on('popupopen', e => setTimeout(() => {
-  const el = e.popup.getElement(); if (!el) return;
+  const el = e.popup.getElement(); if (!el || phone()) return;
   const ib = search.getBoundingClientRect(), pb = el.getBoundingClientRect();
   if (pb.top < ib.bottom + 8 && pb.left < ib.right && pb.right > ib.left) map.panBy([0, pb.top - ib.bottom - 8]);
 }, 350));
@@ -384,7 +385,7 @@ function popupHtml(addr, people) {
 Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/house_notes.json').then(r => r.json()).catch(() => ({}))]).then(([D, NOTES]) => {
   let people = 0;
   // окно дома не должно уходить под строку поиска; на узком экране оно ещё и уже
-  const popupOpts = { maxWidth: Math.min(360, window.innerWidth - 50), autoPanPaddingTopLeft: [10, search.offsetHeight + 24] };
+  const popupOpts = { maxWidth: Math.min(360, window.innerWidth - 50), autoPan: !phone(), autoPanPaddingTopLeft: [10, search.offsetHeight + 24] };
   const houses = [], partyAll = [0, 0]; // [членов ВКП(б), всего людей] по всей карте
   // Служебный просмотр: адрес страницы с ?min=20 оставляет на карте только дома, где расстреляно не меньше 20 человек.
   const MIN = +new URLSearchParams(location.search).get('min') || 0;
@@ -418,10 +419,36 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
     box.appendChild(d);
     setTimeout(() => { // справка не должна уходить за левый край или под строку поиска
+      if (phone()) return;
       const r = d.getBoundingClientRect(), sb = search.getBoundingClientRect();
       const dx = r.left < 8 ? r.left - 8 : 0, dy = r.top < sb.bottom + 8 && r.left < sb.right ? r.top - sb.bottom - 8 : 0;
       if (dx || dy) map.panBy([dx, dy]);
     }, 400);
+  });
+
+  // ---------- телефон: окно дома — панель в нижней части экрана ----------
+  // Всплывающее окно карты на узком экране закрывает всю карту, а вместе со справкой о доме не помещается вовсе.
+  // Поэтому там оно скрыто (стили в index.html), а его содержимое показывается в панели снизу; справка о доме —
+  // сворачиваемым блоком над списком. Карта сдвигается так, чтобы дом был виден над панелью.
+  // Этот обработчик стоит после обработчика справки: к его запуску справка уже добавлена в окно.
+  let sheet = null;
+  const closeSheet = () => { if (sheet) { sheet.remove(); sheet = null; document.body.classList.remove('sheet-on'); } };
+  map.on('popupclose', closeSheet);
+  map.on('popupopen', e => {
+    closeSheet();
+    if (!phone()) return;
+    const el = e.popup.getElement(), body = el && el.querySelector('.leaflet-popup-content'); if (!body) return;
+    const note = el.querySelector('.note'), h4 = note && note.querySelector('h4');
+    let noteHtml = '';
+    if (note) { const c = note.cloneNode(true), t = c.querySelector('h4'); if (t) t.remove();
+      noteHtml = '<details class="note-m"><summary>' + esc(h4 ? h4.textContent : 'Об этом доме') + '</summary>' + c.innerHTML + '</details>'; }
+    sheet = document.createElement('div'); sheet.id = 'sheet'; sheet.className = 'sheet';
+    sheet.innerHTML = '<button class="x" aria-label="Закрыть">×</button><div class="sheet-body">' + noteHtml + body.innerHTML + '</div>';
+    sheet.querySelector('.x').onclick = () => map.closePopup();
+    document.body.appendChild(sheet); document.body.classList.add('sheet-on');
+    if (story) return; // во вступлении карта и так стоит над панелью, камерой управляет лента
+    const free = sheet.getBoundingClientRect().top, z = map.getZoom();
+    map.panTo(map.unproject(map.project(e.popup.getLatLng(), z).add([0, (map.getSize().y - free) / 2]), z));
   });
 
   // ---------- поиск по адресу: улицы и дома, но только те, что есть на карте ----------
