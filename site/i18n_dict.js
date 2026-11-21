@@ -12,6 +12,7 @@ window.I18N_T = {
   "Таймлайн": ["Timeline", "Línea de tiempo"],
   "Скрыть таймлайн": ["Hide timeline", "Ocultar la línea de tiempo"],
   "Закрыть": ["Close", "Cerrar"],
+  "@Закрыть": ["Close", "Cerrar"],
   "Об этом доме": ["About this building", "Sobre este edificio"],
   "Люди и адреса: «Мемориал», mos.memo.ru; координаты — Д. Скугаревский": ["People and addresses: Memorial, mos.memo.ru; coordinates: D. Skougarevskiy", "Personas y direcciones: Memorial, mos.memo.ru; coordenadas: D. Skougarevskiy"],
   "Дома и улицы: © участники OpenStreetMap, ODbL; контуры современные": ["Buildings and streets: © OpenStreetMap contributors, ODbL; present-day outlines", "Edificios y calles: © colaboradores de OpenStreetMap, ODbL; contornos actuales"],
@@ -251,5 +252,5 @@ window.I18N_T = {
   "На карте жёлтые — те, у кого табличка есть. Серые — все остальные.": ["Yellow dots on the map are those who have a plaque. Grey dots are everyone else.", "Los puntos amarillos del mapa son los que tienen placa. Los grises, todos los demás."],
   "Подать заявку на табличку может любой.": ["Anyone can apply for a plaque.", "Cualquiera puede solicitar una placa."],
   "Как подать заявку": ["How to apply", "Cómo solicitarla"],
-  "На карте только Москва и только те, чей адрес известен. Данные: «Мемориал», база «Расстрелы в Москве»; таблички — сайт «Последнего адреса», #.#.#.": ["The map shows only Moscow and only those whose address is known. Data: Memorial, the “Executions in Moscow” database; plaques: the Last Address website, #.#.#. Work and birthplace records are quoted in Russian, as they stand in the database.", "En el mapa solo está Moscú y solo aquellos cuya dirección se conoce. Datos: Memorial, base «Fusilamientos en Moscú»; placas: sitio web de «Última Dirección», #.#.#. Los registros de trabajo y lugar de nacimiento se citan en ruso, tal como figuran en la base."],
+  "На карте только Москва и только те, чей адрес известен. Данные: «Мемориал», база «Расстрелы в Москве»; таблички — сайт «Последнего адреса», #.#.#.": ["The map shows only Moscow and only those whose address is known. Data: Memorial, the “Executions in Moscow” database; plaques: the Last Address website, #.#.#. Records of work and place of birth are not translated yet and are shown only in the Russian version.", "En el mapa solo está Moscú y solo aquellos cuya dirección se conoce. Datos: Memorial, base «Fusilamientos en Moscú»; placas: sitio web de «Última Dirección», #.#.#. Los registros de trabajo y lugar de nacimiento aún no están traducidos y solo se muestran en la versión rusa."],
 };
