@@ -48,9 +48,45 @@ body.story-on.story-move #map{cursor:grab}
 #story .grid.years i.on,#story .leg i.on{background:#ff3b2f}
 #story .leg i.rest{background:#34363c}
 /* полоски: национальности */
+/* длинный слайд: карточка стоит на месте, прокрутка ведёт по месяцам */
+#story .step.long{min-height:340vh;align-items:flex-start}
+#story .step.long .card{position:sticky;top:20vh}
+#story .mons{display:flex;align-items:flex-end;gap:3px;height:76px;margin:10px 0 12px;max-width:340px}
+#story .mon{flex:1;display:flex;flex-direction:column-reverse;gap:1px;opacity:.35;transition:opacity .2s}
+#story .mon.on{opacity:1;outline:1px solid #fff;outline-offset:2px}
+#story .mon i{display:block;border-radius:1px}
+#story .quiet a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+#story .listbtn{font:inherit;font-size:15px;color:#fff;background:none;border:1px solid #ff3b2f;border-radius:4px;padding:6px 14px;cursor:pointer}
+#story .listbtn:hover{background:#ff3b2f}
+/* список жильцов на слайде дома: панель справа поверх объёмного вида */
+#house-list{position:fixed;z-index:915;top:60px;right:24px;bottom:70px;width:min(380px,calc(100vw - 32px));background:#1b1b1b;color:#ddd;border:1px solid #33353b;border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.6);display:flex;flex-direction:column}
+#house-list .leaflet-popup-content{max-height:none;width:auto!important;margin:14px 16px;overflow-y:auto;flex:1}
+#house-list .x{position:absolute;top:6px;right:8px;z-index:1;background:none;border:0;color:#aaa;font:22px/1 system-ui,sans-serif;cursor:pointer;padding:2px 6px}
+#house-list .x:hover{color:#fff}
+@media(max-width:759px){#house-list{top:auto;left:8px;right:8px;bottom:8px;width:auto;height:62vh}}
+/* окно со списком родившихся в одном месте */
+.born-pop{font:13px/1.4 system-ui,sans-serif}
+.born-list{max-height:260px;overflow-y:auto;margin-top:8px;padding-right:6px}
+.born-list p{margin:0 0 8px;font-size:12px}
+/* слайд «откуда они»: подписи стран на карте и легенда к полоске */
+.place.geo span{font-size:12px;color:#c9cbd1}
+.place.geo span b{color:#fff;font-weight:600}
+.place.geo.lft span{left:auto}
+.place.geo.ab span b{color:#ff8a80}
+.place.geo.fr span b{color:#f5b83d}
+#story .leg2{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 4px}
+#story .leg2 i{width:10px;height:10px;border-radius:2px;flex:none}
+/* полоска-пропорция из двух частей */
+#story .split{display:flex;gap:2px;height:12px;max-width:340px;margin:12px 0 10px}
+#story .split i{border-radius:2px;min-width:3px}
 #story .hbars{margin:14px 0 10px;max-width:340px}
 #story .hbar{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:14px;color:#bbb}
 #story .hbar span{width:64px;flex:none}
+#story .hbar.wide span{width:86px}
+#story .hbar.wider2 span{width:190px;white-space:nowrap}
+#story .hbar.wider2 b{white-space:nowrap}
+#story .hbar.wider span{width:156px;white-space:nowrap}
+#story .hbar.wider b{white-space:nowrap}
 #story .hbar i{height:12px;background:#ff3b2f;border-radius:2px;min-width:2px;flex:none;max-width:200px}
 #story .hbar b{color:#fff;font-weight:600;font-variant-numeric:tabular-nums}
 /* сто квадратов: партийность */
@@ -66,6 +102,9 @@ body.story-on.story-move #map{cursor:grab}
 .place{pointer-events:none;animation:place-in .6s ease both}
 @keyframes place-in{from{opacity:0}to{opacity:1}}
 .place i{position:absolute;left:-6px;top:-6px;width:10px;height:10px;border-radius:50%;border:2px solid #fff;background:#0e0f11}
+/* подпись к точке человека: без кружка-метки, точка уже нарисована на карте */
+.place.tag i{display:none}
+.place.tag span{left:9px}
 .place span{position:absolute;left:11px;top:-9px;white-space:nowrap;color:#fff;font:12px/18px system-ui,sans-serif;text-shadow:0 0 4px #000,0 0 4px #000}
 /* вопросы */
 #story .q{display:block;font-size:22px;line-height:1.3;font-weight:600;color:#fff;margin:22px 0 10px}
@@ -96,6 +135,7 @@ body.story-on.story-move #map{cursor:grab}
   #story{font-size:17px;background:linear-gradient(rgba(14,15,17,.15),rgba(14,15,17,.7))}
   #story .step{padding:0 20px 14vh;align-items:flex-end}
   #story .step.ask{padding-top:30vh;padding-bottom:10vh}
+  #story .step.long .card{top:38vh}
   #story .ask .card{background:rgba(14,15,17,.82);border-radius:10px;padding:16px;box-sizing:border-box}
   #story .where{font-size:26px}
   #story .big{font-size:36px}

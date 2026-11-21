@@ -167,6 +167,39 @@ function dotStyle(n) {
   const k = Math.min(1, Math.pow(2, (map.getZoom() - 16) * 0.5));
   return { radius: Math.max(1.1, (3 + Math.sqrt(n) * 2.2) * k), weight: k > 0.6 ? 1 : 0, fillOpacity: k > 0.6 ? 0.45 : 0.6 };
 }
+// Одна точка — один человек (проба, решение Ильи 2026-11-21). Дом по-прежнему один маркер (окно, поиск, годы работают как раньше),
+// но рисуется он не кругом, а россыпью из k точек, уложенных спиралью вокруг адреса. Шаг между точками вблизи 7 px
+// и сжимается издалека так же, как раньше сжимались круги; площадь россыпи растёт с числом людей.
+const flockStep = () => Math.max(1.25, 7 * Math.min(1, Math.pow(2, (map.getZoom() - 16) * 0.5)));
+const GOLD = Math.PI * (3 - Math.sqrt(5));
+const Flock = L.CircleMarker.extend({
+  _count() { return Math.max(1, this.k || this.n || 1); },
+  _step() { return Math.max(flockStep(), this.options.minStep || 0); },
+  _updateBounds() { // радиус россыпи — для попадания мышью и границ перерисовки
+    this._radius = this._step() * 0.6 * Math.sqrt(this._count()) + this._step() * 0.4 + 1;
+    L.CircleMarker.prototype._updateBounds.call(this);
+  },
+  _updatePath() {
+    const r = this._renderer, o = this.options;
+    if (!r._drawing || this._empty() || !o.fillOpacity) return;
+    const ctx = r._ctx, p = this._point, st = this._step(), c = st * 0.6, rad = Math.max(0.6, st * 0.36), k = this._count();
+    ctx.globalAlpha = o.fillColor === GREY ? 0.4 : 0.9;
+    const hot = story && story.hot;
+    const cols = this.cols && this.cols.length === k ? this.cols : null; // цвета точек по одной на человека (одинаковые идут подряд)
+    for (let i = 0; i < k;) {
+      const col = cols ? cols[i] : o.fillColor;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      for (; i < k && (!cols || cols[i] === col); i++) {
+        const d = c * Math.sqrt(i), a = i * GOLD, x = p.x + d * Math.cos(a), y = p.y + d * Math.sin(a);
+        const r2 = hot === col ? Math.max(1.6, rad * 2) : rad; // выделенный цвет сцены — крупнее
+        if (r2 < 1) ctx.rect(x - r2, y - r2, r2 * 2, r2 * 2); else { ctx.moveTo(x + r2, y); ctx.arc(x, y, r2, 0, 6.2832); }
+      }
+      ctx.fill();
+    }
+  },
+  _containsPoint(q) { return q.distanceTo(this._point) <= Math.max(this._radius, 5) + this._clickTolerance(); },
+});
 let pickedYear = 0; // 0 — все годы
 let markYears = () => {}; // подсветка годов на таймлайне, задаётся после загрузки данных
 let pickedHouse = null; // дом, окно которого сейчас открыто
@@ -180,17 +213,22 @@ let story = null;
 const storyStyle = m => {
   if (!story.lit.has(m)) return { opacity: 0, fillOpacity: 0 };
   const st = dotStyle(m.n);
-  return Object.assign({ color: RED, fillColor: RED, opacity: 1 }, st, story.big ? { radius: Math.max(story.lit.size <= 60 ? 5 : 3, st.radius), weight: 1, fillOpacity: 0.55 } : {});
+  return Object.assign({ color: RED, fillColor: RED, opacity: 1, minStep: 0 }, st, story.big ? { radius: Math.max(story.lit.size <= 60 ? 5 : 3, st.radius), weight: 1, fillOpacity: 0.55, minStep: (story.match ? story.match.size <= 200 : story.lit.size <= 6) ? 6 : story.match && story.match.size <= 1500 ? 4.6 : 3 } : {});
 };
 // Открыт дом — красным остаётся только он. Выбрана улица в поиске — красными остаются только её дома. Выбран год: дома, где в этот год кого-то расстреляли, — такие же полупрозрачные красные круги, как на всех годах, поверх остальных
 // (размер — по числу за этот год); все прочие дома остаются на месте, но серые (размер — по общему числу).
 function redrawDots() {
-  if (story) { dots.forEach(m => { m.options.interactive = story.lit.has(m); m.setStyle(storyStyle(m)); }); return; } // погашенные дома не нажимаются
+  if (story) { dots.forEach(m => { m.options.interactive = story.lit.has(m); const mine = story.match && story.lit.has(m) ? m.ppl.filter(q => story.match.has(q)) : null;
+    m.k = mine && mine.length || m.n; m.cols = story.tint && mine && mine.length ? mine.map(q => story.tint.get(q) || RED).sort() : null; // цвет каждой точки, если сцена красит людей
+    m.setStyle(storyStyle(m)); });
+    if (story.hot) dots.forEach(m => { if (m.cols && m.cols.includes(story.hot)) m.bringToFront(); }); // дома с выделенными людьми — поверх остальных
+    return; } // сцена про людей: в доме горят только они // погашенные дома не нажимаются
   // открытый дом: красным остаётся только он; если он стоит на выбранной улице — вся улица
   const house = pickedHouse && !(pickedStreet && pickedStreet.has(pickedHouse)) ? pickedHouse : null;
   const filtered = pickedYear || pickedStreet || house, bright = [];
   dots.forEach(m => {
     const n = shown(m), on = house ? m === house : n && (!pickedStreet || pickedStreet.has(m));
+    m.k = on || !filtered ? (n || m.n) : m.n; m.options.minStep = 0; m.cols = null; // сколько точек рисовать: при выбранном годе — расстрелянные в этот год
     if (!filtered) m.setStyle(Object.assign({ color: RED, fillColor: RED, opacity: 1 }, dotStyle(n)));
     else if (on) { // такой же полупрозрачный красный круг, как обычно
       const st = dotStyle(n || m.n);
@@ -353,7 +391,7 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
   D.forEach(([lat, lon, addr, ppl]) => {
     if (ppl.length < MIN) return;
     people += ppl.length;
-    const m = L.circleMarker([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
+    const m = new Flock([lat, lon], Object.assign({ color: '#ff3b2f', fillColor: '#ff3b2f' }, dotStyle(ppl.length)));
     m.n = ppl.length; m.byYear = {}; m.addr = addr; m.ppl = ppl; dots.push(m);
     if (NOTES[addr]) { m.note = NOTES[addr]; m.party = ppl.filter(q => (q[8] || '').startsWith('член ВКП')).length; }
     ppl.forEach(q => { partyAll[1]++; if ((q[8] || '').startsWith('член ВКП')) partyAll[0]++; });
