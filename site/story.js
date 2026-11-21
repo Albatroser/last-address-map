@@ -236,7 +236,9 @@
       ['Ярославль', /ярослав/, 57.63, 39.87], ['Иваново', /иванов(ск|о-возн)|г\.\s*иваново/, 57.00, 40.97], ['Тверь', /твер|калининск/, 56.86, 35.90], ['Владимир', /владимирск|г\.\s*владимир/, 56.13, 40.41],
       ['Кострома', /костром/, 57.77, 40.93], ['Ростов-на-Дону', /ростов/, 47.23, 39.72], ['Астрахань', /астрахан/, 46.35, 48.04], ['Пенза', /пенз/, 53.20, 45.00], ['Ульяновск', /симбирск|ульяновск/, 54.32, 48.40],
       ['Вологда', /вологд|вологодск/, 59.22, 39.88], ['Псков', /псков/, 57.82, 28.33], ['Сталинград', /сталинград|царицын/, 48.71, 44.51],
-      ['Латвия', /латв|лифлянд|курлянд/, 57.2, 25.6], ['Эстония', /эстон|эстлянд|ревел|таллин|юрьев/, 58.8, 25.6], ['Литва', /литв/, 55.3, 23.6],
+      // Эстония стоит раньше Латвии: север Лифляндской губернии (Юрьевский, Перновский, Феллинский, Верроский, Эзельский уезды) — это Эстония
+      ['Эстония', /эстон|эстлянд|ревел|таллин|юрьев|дерпт|пернов|феллин|верроск|эзел/, 58.8, 25.6],
+      ['Лифляндская губерния', /лифлянд/, 57.3, 25.6], ['Курляндская губерния', /курлянд/, 56.6, 22.6], ['Латвия', /латв/, 56.9, 24.9], ['Литва', /литв/, 55.3, 23.6],
       ['Польша', /польш/, 52.0, 19.3], ['Германия', /герман/, 51.0, 10.5], ['Венгрия', /венгр/, 47.0, 19.6], ['Австрия', /австри/, 47.6, 14.5], ['Румыния', /румын/, 45.8, 25.0],
       ['Белоруссия', /белорус|бсср/, 53.4, 28.2], ['Украина', /украин|усср/, 49.0, 32.0],
       ['Ленинградская область', /ленинградск|петроградск|петербургск/, 59.6, 31.6], ['Крым', /таврическ|симферопол|севастопол|керч|ялт|евпатори|крым/, 45.0, 34.1],
@@ -267,11 +269,11 @@
     // Вильно, Гродно, Брест и Белосток тогда — Польша; Кишинёв — Румыния (Бессарабия); Крым — в РСФСР.
     // Место, не названное ни в одной группе, — РСФСР. abroad: родился за тогдашней границей СССР.
     const G37 = [
-      { name: 'Латвия', abroad: 1, at: [56.9, 24.9], places: ['Рига', 'Либава', 'Митава', 'Двинск', 'Латвия'] },
+      { name: 'Латвия', abroad: 1, at: [56.9, 24.9], places: ['Рига', 'Либава', 'Митава', 'Двинск', 'Латвия', 'Лифляндская губерния', 'Курляндская губерния'] },
       { name: 'Польша', abroad: 1, at: [52.2, 20.6], places: ['Варшава', 'Лодзь', 'Люблин', 'Радом', 'Белосток', 'Польша', 'Польша, другие места', 'Вильно', 'Гродно', 'Брест'] },
       { name: 'Литва', abroad: 1, at: [55.3, 23.7], places: ['Ковно', 'Литва'] }, { name: 'Эстония', abroad: 1, at: [58.8, 25.6], places: ['Эстония'] },
       { name: 'Германия', abroad: 1, at: [51.2, 10.6], places: ['Берлин', 'Лейпциг', 'Гамбург', 'Германия'] }, { name: 'Венгрия', abroad: 1, at: [47.2, 19.4], places: ['Будапешт', 'Венгрия'] },
-      { name: 'Австрия', abroad: 1, left: 1, at: [47.6, 14.4], places: ['Вена', 'Австрия'] }, { name: 'Бессарабия и Румыния', abroad: 1, at: [46.4, 27.0], places: ['Румыния', 'Кишинёв', 'Молдавия, другие места'] },
+      { name: 'Австрия', abroad: 1, left: 1, at: [47.6, 14.4], places: ['Вена', 'Австрия'] }, { name: 'Бессарабия', abroad: 1, at: [47.0, 28.6], places: ['Кишинёв', 'Молдавия, другие места'] }, { name: 'Румыния', abroad: 1, at: [45.4, 24.6], places: ['Румыния'] },
       { name: 'Китай', abroad: 1, at: null, places: ['Китай'] },
       { name: 'другие страны', abroad: 1, at: null, places: ['Корея', 'Югославия', 'Чехословакия', 'Турция', 'Финляндия', 'Иран', 'Болгария', 'Италия', 'Греция', 'Индия', 'Япония', 'США', 'Франция'] },
       { name: 'Украинская ССР', abroad: 0, at: [49.0, 32.6], places: ['Одесса', 'Киев', 'Харьков', 'Днепропетровск', 'Николаев', 'Херсон', 'Полтава', 'Житомир', 'Кременчуг', 'Украина', 'Украина, другие места'] },
@@ -283,14 +285,15 @@
     G37.forEach(g => { g.n = 0; }); geoAll.forEach(a => { a.g = g37Of(a.name); a.g.n += a.n; });
     const geoMos = geoN['Москва'] || 0, geoAbroad = G37.filter(g => g.abroad).reduce((a, g) => a + g.n, 0), geoUssr = geoFound - geoAbroad;
     const geoPc = n => (n / geoKnown * 100).toFixed(n / geoKnown < 0.1 ? 1 : 0).replace('.', ',');
-    const COL_AB = '#ff3b2f', COL_SU = '#d0d2d8', COL_FR = '#f5b83d'; // бывшие окраины империи, СССР, другие страны
-    const bornTint = new Map(); P.forEach(x => bornTint.set(x.p, geoOf.get(x.p) === 'Москва' ? '#ff3b2f' : DIM));
+    // один цвет на группу на всех трёх слайдах о месте рождения — и в полоске, и на карте (решение Ильи 2026-11-21)
+    const COL_MOS = '#ff3b2f', COL_AB = '#e8e9ec', COL_FR = '#f5b83d', COL_SU = '#5fa8e0', COL_UNK = '#6b6e76'; // Москва, бывшие окраины империи, другие страны, СССР без Москвы, место не определено
+    const bornTint = new Map(); P.forEach(x => bornTint.set(x.p, geoOf.get(x.p) === 'Москва' ? COL_MOS : DIM));
     const geoFar = G37.filter(g => !g.at && g.n).reduce((a, g) => a + g.n, 0); // не помещаются в кадр: Китай, Средняя Азия, другие страны
     let landRings = null; // контуры суши для этого слайда (site/data/world_land.json)
     fetch('data/world_land.json').then(r => r.json()).then(r => { landRings = r; }).catch(() => {});
     // два слайда: сначала родившиеся за границей СССР, потом — в СССР, но не в Москве (решение Ильи 2026-11-21)
     const MOS37 = G37.find(g => g.name === 'Москва');
-    const geoAb = { groups: G37.filter(g => g.at && g.n && (g.abroad || g === MOS37)), towns: [] };
+    const geoAb = { groups: G37.filter(g => g.at && g.n && (g.abroad || g === MOS37)), towns: [] }; // dots и линии добавляются ниже, когда точки расставлены
     const geoRows = {}; P.forEach(x => { const n = geoOf.get(x.p); if (n) (geoRows[n] = geoRows[n] || []).push(x); });
     const suDots = geoAll.filter(a => a.lat !== null && !a.g.abroad && a.name !== 'Москва');
     // Точка на человека. Если в записи назван город («г. Тула», «Киеве») — точка стоит в городе, плотной россыпью.
@@ -299,25 +302,54 @@
     // Радиус круга в градусах широты; случайность постоянная (зависит от имени), чтобы картинка не прыгала.
     const SPREAD = { 'Московская область': 1.1, 'Ленинградская область': 1.2, 'Украина, другие места': 2.6, 'Украина': 2.8, 'Белоруссия': 1.8, 'Белоруссия, другие места': 1.6,
       'Крым': 0.6, 'Средняя Азия': 4.5, 'Сибирь': 5, 'Дальний Восток': 3.5, 'Забайкалье': 2.5, 'Иркутск': 2.5, 'Красноярск': 3, 'Томск': 2, 'Омск': 2, 'Свердловск': 1.8, 'Челябинск': 1.5, 'Пермь': 1.8,
+      'Латвия': 0.9, 'Лифляндская губерния': 0.6, 'Курляндская губерния': 0.45, 'Эстония': 0.7, 'Литва': 0.7, 'Польша': 1.6, 'Польша, другие места': 1.6, 'Германия': 2.0, 'Венгрия': 1.0,
+      'Австрия': 0.8, 'Румыния': 1.3, 'Молдавия, другие места': 0.4,
       'Закавказье, другие места': 1.6, 'Северный Кавказ': 1.6, 'Кубань': 1.2, 'Дон': 1.5, 'Архангельск': 2.5, 'Карелия': 1.8, 'Башкирия': 1.5, 'Оренбург': 1.6 };
     const isTown = x => /г\.\s*[а-яё]/i.test(x.p[6] || '') || /^[а-яё-]+[еи]$/i.test((x.p[6] || '').trim()); // «г. Тула» или одно слово в предложном падеже: «Киеве», «Одессе»
-    suDots.forEach(g => {
+    const placeDots = (g, R0, soft) => {
       let seed = 7; for (const ch of g.name) seed = (seed * 31 + ch.charCodeAt(0)) % 2147483647;
-      const rnd = () => (seed = seed * 48271 % 2147483647) / 2147483647, R = SPREAD[g.name] || 1.3, k = 1 / Math.cos(g.lat * Math.PI / 180);
+      const rnd = () => (seed = seed * 48271 % 2147483647) / 2147483647, R = SPREAD[g.name] || R0, k = 1 / Math.cos(g.lat * Math.PI / 180);
       const rows = geoRows[g.name] || [];
       const whole = g.name in SPREAD; // это не город, а область или край целиком: в одну точку никого не ставим
       g.town = whole ? 0 : rows.filter(isTown).length;
       g.pts = rows.filter(x => whole || !isTown(x)).map(() => { const r = R * Math.sqrt(0.04 + 0.96 * rnd()), a = rnd() * 6.2832; return [g.lat + r * Math.sin(a), g.lon + r * Math.cos(a) * k]; });
-    });
+      if (!soft) return;
+      // мягкая россыпь без ровного края и без спирали: и город, и губерния — облако, густое в середине (для слайда о загранице)
+      const cloud = (n, sig) => Array.from({ length: n }, () => { const r = sig * Math.sqrt(-2 * Math.log(1 - 0.999 * rnd())), a = rnd() * 6.2832; return [g.lat + r * Math.sin(a), g.lon + r * Math.cos(a) * k]; });
+      g.pts = cloud(g.pts.length, R * 0.5).concat(cloud(g.town, 0.022 * Math.sqrt(g.town))); g.town = 0;
+    };
+    suDots.forEach(g => { placeDots(g, 1.3, true); g.col = COL_SU; });
+    // Заграница — так же, как линии к местам захоронения (решение Ильи 2026-11-21): точка на человека в месте рождения и тонкая линия от неё к Москве.
+    // Город назван — точка в городе; названа только губерния или страна — точка случайно в их пределах: точнее место неизвестно.
+    const frOf = g => !!g.abroad && !['Латвия', 'Польша', 'Литва', 'Эстония', 'Бессарабия'].includes(g.name); // «другие страны», не бывшие окраины империи
+    const abDots = geoAll.filter(a => a.g.abroad && a.g.at).map(a => Object.assign({}, a, a.lat === null ? { lat: a.g.at[0], lon: a.g.at[1] } : {}));
+    abDots.forEach(g => { placeDots(g, 0.6, true); g.col = frOf(g.g) ? COL_FR : COL_AB; });
+    // линия — дуга, у каждой свой изгиб: веер получается объёмным, а не плоским клином
+    let abSeed = 11; const abRnd = () => (abSeed = abSeed * 48271 % 2147483647) / 2147483647;
+    const abArc = a => { const b = CITY, bend = 0.03 + 0.2 * abRnd(), mx = (a[0] + b[0]) / 2 + Math.min(40, Math.abs(b[1] - a[1])) * bend, // изгиб всегда к северу; у дальних мест он ограничен, иначе дуга уходит за Арктику
+      my = (a[1] + b[1]) / 2, out = [];
+      for (let i = 0; i <= 14; i++) { const t = i / 14; out.push([(1 - t) * (1 - t) * a[0] + 2 * t * (1 - t) * mx + t * t * b[0], (1 - t) * (1 - t) * a[1] + 2 * t * (1 - t) * my + t * t * b[1]]); }
+      return out; };
+    const abLine = fr => { const out = []; abDots.filter(g => frOf(g.g) === fr).forEach(g => g.pts.forEach(q => out.push(abArc(q)))); return out; };
     // Кружок на место рождения, площадь — по числу людей (решение Ильи 2026-11-21; до этого была точка на человека:
     // город — плотной россыпью, область — случайными точками в её пределах; тот вид остался в коде как geo37.dots).
-    const geoSu = { groups: [], circles: suDots, circleMin: 40 };
+    // Слайд о приезжих со всей страны — в том же виде, что и заграница (решение Ильи 2026-11-21): точки и дуги к Москве вместо кружков.
+    const geoSu = { groups: [MOS37], dots: suDots, names: suDots, circleMin: 40 };
+    geoSu.lineSets = [[suDots.reduce((a, g) => a.concat(g.pts.map(abArc)), []), COL_SU, 0.04]];
+    geoAb.dots = abDots; geoAb.lineSets = [[abLine(true), COL_FR, 0.05], [abLine(false), COL_AB, 0.03]]; // жёлтые первыми, белые поверх: белых вчетверо больше, иначе веер у Москвы окрашивается в жёлтый
     // Почему «за границей»: Латвия, Польша, Литва, Эстония и Бессарабия до 1917–1918 годов входили в Российскую империю.
     // Считаем, сколько родившихся там родились до 1918 года; остальные страны — отдельно.
-    const EMPIRE = new Set(['Рига', 'Либава', 'Митава', 'Двинск', 'Латвия', 'Варшава', 'Лодзь', 'Люблин', 'Радом', 'Белосток', 'Польша', 'Польша, другие места',
+    const EMPIRE = new Set(['Рига', 'Либава', 'Митава', 'Двинск', 'Латвия', 'Лифляндская губерния', 'Курляндская губерния', 'Варшава', 'Лодзь', 'Люблин', 'Радом', 'Белосток', 'Польша', 'Польша, другие места',
       'Вильно', 'Гродно', 'Брест', 'Ковно', 'Литва', 'Эстония', 'Кишинёв', 'Молдавия, другие места']);
     const empRows = P.filter(x => EMPIRE.has(geoOf.get(x.p))), empOld = empRows.filter(x => +x.p[2] && +x.p[2] < 1918).length, geoOther = geoAbroad - empRows.length;
     const abTop = G37.filter(g => g.abroad && g.n).sort((a, b) => b.n - a.n), geoIn = geoUssr - geoMos; // родились в СССР, но не в Москве
+    // Сквозная полоска трёх слайдов: вся полоса — люди с записанным местом рождения (geoKnown), пять частей дают её целиком.
+    // На каждом слайде яркая только своя часть. Проценты округлены до целых.
+    const geoParts = [['mos', geoMos, COL_MOS, 'Москва'], ['emp', empRows.length, COL_AB, 'бывшие окраины империи'], ['oth', geoOther, COL_FR, 'другие страны'],
+      ['su', geoIn, COL_SU, 'СССР без Москвы'], ['unk', geoKnown - geoFound, COL_UNK, 'место не определено']];
+    const geoBar = on => '<div class="split geobar">' + geoParts.map(a => '<i style="background:' + a[2] + ';flex:' + a[1] + (on.includes(a[0]) ? '' : ';opacity:.25') + '"></i>').join('') + '</div>' +
+      '<p class="quiet geokey">Вся полоса — ' + fmt(geoKnown) + ' человек, у которых записано место рождения.<br>' +
+      geoParts.map(a => '<span' + (on.includes(a[0]) ? ' class="on"' : '') + '><i style="background:' + a[2] + '"></i>' + a[3] + ' ' + pct(a[1], geoKnown) + ' %</span>').join(' ') + '</p>';
     const farOf = name => (G37.find(g => g.name === name) || { n: 0 }).n;
     // Родившиеся в СССР, но не в Москве: сколько из них из деревни и кем они стали (слайд Ильи 2026-11-21 «о жителях СССР»).
     // «Деревня» — в записи о месте рождения есть село, деревня, хутор, станица, слобода, местечко, волость или уезд.
@@ -326,7 +358,7 @@
     const isVillage = x => /(^|[\s,.])(с\.|д\.|дер\.|село|деревн|хутор|станиц|слобод|местечк|волост|уезд)/i.test(x.p[6] || '');
     const isBoss = x => /директор|начальник|заместител|управляющ|заведующ|(^|[^а-яё])зам\.|(^|[^а-яё])зав\./i.test(jobText(x));
     const vilRows = suRows.filter(isVillage), vilBoss = vilRows.filter(isBoss), vilParty = vilRows.filter(isIn);
-    const vilTint = new Map(); vilRows.forEach(x => vilTint.set(x.p, isBoss(x) ? '#ff3b2f' : DIM));
+    const vilTint = new Map(); vilRows.forEach(x => vilTint.set(x.p, isBoss(x) ? '#ff3b2f' : '#9a9ca3')); // серые должны быть видны: карта показывает ту же пропорцию, что карточка
     // Три примера — не «самые яркие», а первые по алфавиту среди тех, у кого должность записана отдельным полем, коротко
     // (от 30 до 80 знаков) и начинается со слова «директор» или «начальник». Сотрудники НКВД в примеры не берутся.
     const vilEx = vilBoss.filter(x => x.p[7] && x.p[9] && x.p[9].length >= 30 && x.p[9].length <= 80 && /^(директор|начальник)/i.test(x.p[9]) && !/нквд|огпу|гулаг|лагер|гугб/i.test(x.p[9]))
@@ -373,10 +405,10 @@
       house4: { list: [], rows: null, zoom: 18, build: topHouses[4] },
       twoways: { list: housesOf(twoRows), rows: twoRows, tint: twoTint, zoom: 11, pts: gravePts, lines: komLines, linesLight: butLinesNp,
         places: [['Коммунарка', 'члены партии — ' + inGr(party.in, 'Коммунарка') + ' %'], ['Бутово', 'беспартийные — ' + inGr(party.no, 'Бутово') + ' %']].map(([k, t]) => [GRAVES[k][0], GRAVES[k][1], k + ': ' + t]) },
-      village: { list: housesOf(vilRows), rows: vilRows, city: true, tint: vilTint, hot: '#ff3b2f' },
-      born: { list: dots, rows: P, city: true, tint: bornTint, hot: '#ff3b2f' },
-      abroad: { list: [], rows: [], zoom: 6, exact: true, pts: [[60.3, 25.0], [45.0, 10.0], [56.2, 45.5], [46.0, 28.0]], geo37: geoAb },
-      inland: { list: [], rows: [], zoom: 5, exact: true, pts: [[66.0, 24.0], [38.5, 24.0], [43.0, 138.0], [66.0, 138.0]], geo37: geoSu },
+      village: { list: housesOf(vilRows), rows: vilRows, city: true, tint: vilTint, hot: true }, // крупные и красные, и серые: серых вдвое больше, мелкими они терялись
+      born: { list: dots, rows: P, city: true, tint: bornTint, hot: COL_MOS },
+      abroad: { list: [], rows: [], zoom: 6, exact: true, pts: [[60.3, 25.0], [45.0, 10.0], [56.2, 45.5], [46.0, 28.0]], ptsNarrow: [[60.0, 22.0], [45.3, 9.0], [55.8, 38.0]], geo37: geoAb }, // на телефоне кадр уже: от Германии до Москвы, без запаса справа
+      inland: { list: [], rows: [], zoom: 5, exact: true, pts: [[64.0, 24.0], [39.0, 24.0], [43.0, 100.0], [64.0, 100.0]], ptsNarrow: [[62.0, 24.0], [40.0, 24.0], [41.0, 62.0]], geo37: geoSu }, // кадр — европейская часть и Сибирь до Красноярска (на телефоне — до Урала): там почти все; линии с востока уходят за край
       natwhere: { list: housesOf(three), rows: three, tint: natAllTint, zoom: 11, pts: gravePts, lines: butLines, linesDim: elseLines,
         places: ['Бутово', 'Коммунарка', 'Донское'].map(k => [GRAVES[k][0], GRAVES[k][1], k + ' — ' + pct(three.filter(x => x.p[4] === k).length, three.length) + ' %']) },
       chinese: { list: housesOf(chin), rows: chin, city: true, tint: chinTint, hot: '#ff3b2f', blood: true },
@@ -412,21 +444,21 @@
         (P.length - men.length - women.length ? 'У ' + (P.length - men.length - women.length) + ' человек определить не удалось.' : '') + '</p>', 'scene', 'sexes') +
       // откуда они: место рождения, карта отъезжает от Москвы
       sec('<p>Коренных москвичей среди них мало.</p>' +
-        '<p class="big">' + pct(geoMos, geoKnown) + ' %</p>' +
+        geoBar(['mos']) + '<p class="big" style="color:' + COL_MOS + '">' + pct(geoMos, geoKnown) + ' %</p>' +
         '<p>В Москве родились ' + fmt(geoMos) + ' из ' + fmt(geoKnown) + ' человек, у которых записано место рождения. На карте они красные.</p>', 'scene', 'born') +
       // две разные группы, не одна цифра: бывшие окраины империи (красные) и другие страны (жёлтые)
       sec('<p>Многие родились на западных окраинах Российской империи.</p>' +
-        '<p class="big">' + geoPc(empRows.length) + ' %</p>' +
+        geoBar(['emp', 'oth']) + '<p class="big" style="color:' + COL_AB + '">' + pct(empRows.length, geoKnown) + ' %</p>' +
         '<p>' + fmt(empRows.length) + ' ' + plural(empRows.length, 'человек', 'человека', 'человек') + ' — из Латвии, Польши, Литвы, Эстонии и Бессарабии. Когда они родились, это была одна страна с Москвой. К 1937 году это уже заграница.</p>' +
-        '<p class="big" style="color:' + COL_FR + '">' + geoPc(geoOther) + ' %</p>' +
-        '<p>' + fmt(geoOther) + ' ' + plural(geoOther, 'человек родился', 'человека родились', 'человек родились') + ' в других странах: в Германии, Венгрии, Австрии, Китае. Среди расстрелянных в Москве иностранцев историки называют политэмигрантов, коммунистов, квалифицированных рабочих и студентов.</p>' +
-        '<p class="quiet">Границы на карте — на 1937 год. Это место рождения, а не гражданство: гражданства в базе нет. За кадром карты: Китай — ' + farOf('Китай') + ', другие страны — ' + farOf('другие страны') + '.</p>', 'scene', 'abroad') +
+        '<p class="big" style="color:' + COL_FR + '">' + pct(geoOther, geoKnown) + ' %</p>' +
+        '<p>' + fmt(geoOther) + ' ' + plural(geoOther, 'человек родился', 'человека родились', 'человек родились') + ' в других странах: в Германии, Венгрии, Австрии, Румынии, Китае. Среди расстрелянных в Москве иностранцев историки называют политэмигрантов, коммунистов, квалифицированных рабочих и студентов.</p>' +
+        '<p class="quiet">Точка на карте — человек, линия ведёт от места рождения к Москве. Если назван город, точка стоит в нём; если только губерния или страна — случайно в их пределах: точнее место неизвестно. Границы на карте — на 1937 год. Это место рождения, а не гражданство: гражданства в базе нет. За кадром карты: Китай — ' + farOf('Китай') + ', другие страны — ' + farOf('другие страны') + '.</p>', 'scene', 'abroad') +
       sec('<p>Остальные приехали в Москву со всей страны.</p>' +
-        '<p class="big">' + geoPc(geoIn) + ' %</p>' +
-        '<p>' + fmt(geoIn) + ' ' + plural(geoIn, 'человек', 'человека', 'человек') + ' родились в СССР, но не в Москве. Кружок на карте — место рождения: чем больше людей, тем больше кружок. Нажми на кружок, чтобы увидеть имена.</p>' +
+        geoBar(['su']) + '<p class="big" style="color:' + COL_SU + '">' + pct(geoIn, geoKnown) + ' %</p>' +
+        '<p>' + fmt(geoIn) + ' ' + plural(geoIn, 'человек', 'человека', 'человек') + ' родились в СССР, но не в Москве. Точка на карте — человек, линия ведёт от места рождения к Москве. Нажми на точки, чтобы увидеть имена.</p>' +
         '<p>Москва была городом приезжих: с 1926 по 1939 год её население выросло вдвое, с 2 до 4,1 миллиона человек.</p>' +
-        '<p class="quiet">Площадь кружка — по числу людей. В кружок города входят и те, у кого записана только его губерния или область; если названы только край или республика, кружок стоит в их середине: точнее место неизвестно. ' +
-        'Нет на карте ' + fmt(geoKnown - geoFound) + ' человек (' + geoPc(geoKnown - geoFound) + ' %), у которых названо только село или уезд.</p>', 'scene', 'inland') +
+        '<p class="quiet">Если назван город, точка стоит в нём; если только губерния, область, край или республика — случайно в их пределах: точнее место неизвестно. Линии, уходящие за правый край карты, — из Сибири и с Дальнего Востока. ' +
+        'Серая часть полосы — ' + fmt(geoKnown - geoFound) + ' человек, у которых названо только село или уезд: на карту их поставить не удалось.</p>', 'scene', 'inland') +
       // жители СССР: из деревни — в начальники
       sec('<p>Многие из них приехали из деревни. И в Москве стали начальниками.</p>' +
         '<p class="big white">' + fmt(vilRows.length) + '</p>' +
@@ -548,9 +580,9 @@
     const viewOf = sc => {
       const shp = sc.build && shapeOf(sc.build), kxs = Math.cos(55.75 * Math.PI / 180);
       const ptsB = shp ? shp.reduce((a, [lv, ring]) => a.concat(ring, ring.map(q => upBy(q, lv * FLOOR, kxs))), []) : null;
-      const size = map.getSize(), b = L.latLngBounds(ptsB || sc.pts || (sc.list.length ? sc.list.map(m => m.getLatLng()) : [sc.build.getLatLng()]));
+      const size = map.getSize(), b = L.latLngBounds(ptsB || (!wide() && sc.ptsNarrow) || sc.pts || (sc.list.length ? sc.list.map(m => m.getLatLng()) : [sc.build.getLatLng()]));
       // на телефоне справа оставлено место подписям к точкам, сверху — кнопке «Пропустить»
-      const tl = wide() ? L.point(Math.min(540, size.x * 0.46), 70) : L.point(22, 34), br = wide() ? L.point(50, 60) : L.point(sc.places || sc === scenes.abroad ? 96 : 22, 22);
+      const tl = wide() ? L.point(Math.min(540, size.x * 0.46), 70) : L.point(22, 34), br = wide() ? L.point(50, 60) : L.point(sc.places ? 96 : sc === scenes.abroad ? 58 : 22, 22);
       const snap = map.options.zoomSnap; if (sc.exact) map.options.zoomSnap = 0; // этому виду нужен дробный масштаб, чтобы кадр занял всё свободное место
       const zz = Math.max(map.getMinZoom(), Math.min(sc.zoom, map.getBoundsZoom(b, false, tl.add(br))));
       map.options.zoomSnap = snap;
@@ -573,8 +605,8 @@
       _updatePath() {
         const r = this._renderer; if (!r._drawing || this._empty()) return;
         if (window.BLOOD_POOLS && window.BLOOD_POOLS()) return; // проба ?blood: эти точки рисует слой жидкости
-        const ctx = r._ctx, p = this._point, z = this._map.getZoom(), rad = Math.max(0.7, Math.min(2.2, 0.75 * Math.pow(2, (z - 3) / 2)));
-        ctx.globalAlpha = 0.9; ctx.fillStyle = this.options.fillColor; ctx.beginPath();
+        const ctx = r._ctx, p = this._point, z = this._map.getZoom(), rad = Math.max(0.7, Math.min(2.2, 0.75 * Math.pow(2, (z - 3) / 2))) * (this.small ? 0.72 : 1);
+        ctx.globalAlpha = this.small ? 0.8 : 0.9; ctx.fillStyle = this.options.fillColor; ctx.beginPath();
         const dot = (x, y) => { if (rad < 1) ctx.rect(x - rad, y - rad, rad * 2, rad * 2); else { ctx.moveTo(x + rad, y); ctx.arc(x, y, rad, 0, 6.2832); } };
         const step = rad * 2.6;
         for (let i = 0; i < (this.town || 0); i++) { const d = step * 0.6 * Math.sqrt(i), a = i * 2.39996; dot(p.x + d * Math.cos(a), p.y + d * Math.sin(a)); }
@@ -651,7 +683,7 @@
         const kc = 1.25 * Math.max(0.5, Math.min(1, map.getSize().x / 1280)), zc = viewOf(sc)[1], boxes = []; // на узком экране карта мельче — и кружки мельче, пропорции те же
         (sc.geo37.circles || []).filter(g => g.n).sort((a, b) => b.n - a.n).forEach(g => {
           const r = Math.max(1.6, Math.sqrt(g.n) * kc);
-          const c = L.circleMarker([g.lat, g.lon], { renderer: R0, interactive: true, radius: r, color: '#0e0f11', weight: 1, fillColor: '#ff3b2f', fillOpacity: 0.82 });
+          const c = L.circleMarker([g.lat, g.lon], { renderer: R0, interactive: true, radius: r, color: '#0e0f11', weight: 1, fillColor: COL_SU, fillOpacity: 0.82 });
           c.bindPopup(() => bornPopup(g), { maxWidth: 340, autoPan: false });
           extraLayers.push(c.addTo(map));
           // подпись ставится, только если не налезает на уже поставленные (крупные места идут первыми); остальные видны по нажатию
@@ -661,11 +693,19 @@
           if (free) extraLayers.push(L.marker([g.lat, g.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'place tag geo' + (g.lon > 110 ? ' lft' : ''), iconSize: [0, 0],
             html: '<i></i><span style="' + (g.lon > 110 ? 'right:' : 'left:') + (r + 4).toFixed(0) + 'px"><b>' + esc(g.name) + '</b> ' + fmt(g.n) + '</span>' }) }).addTo(map)); // на востоке подпись слева, иначе уходит за край
         });
+        (sc.geo37.lineSets || []).forEach(([ls, col, op]) => extraLayers.push(new Lines(ls, { renderer: R0, interactive: false, color: col, weight: 1, opacity: op }).addTo(map)));
         (sc.geo37.dots || []).forEach(g => { // точка на человека; нажатие открывает список родившихся в этом месте
-          const f = new Scatter([g.lat, g.lon], { renderer: R0, interactive: true, color: '#ff3b2f', fillColor: '#ff3b2f', fillOpacity: 1, weight: 0 });
-          f.town = g.town; f.pts = g.pts; f.n = g.n;
+          const f = new Scatter([g.lat, g.lon], { renderer: R0, interactive: true, color: g.col || '#ff3b2f', fillColor: g.col || '#ff3b2f', fillOpacity: 1, weight: 0 });
+          f.town = g.town; f.pts = g.pts; f.n = g.n; f.small = !!g.col;
           f.bindPopup(() => bornPopup(g), { maxWidth: 340, autoPan: false });
           extraLayers.push(f.addTo(map));
+        });
+        (sc.geo37.names || []).filter(g => g.n >= sc.geo37.circleMin).sort((a, b) => b.n - a.n).forEach(g => { // подпись места — только если не налезает на уже поставленные
+          const east = g.lon > 110, q = map.project([g.lat, g.lon], zc), bw = (g.name.length + String(g.n).length + 2) * 6.8, bx = east ? [q.x - 12 - bw, q.y - 9, q.x - 4, q.y + 9] : [q.x + 4, q.y - 9, q.x + 12 + bw, q.y + 9];
+          if (boxes.some(b => bx[0] < b[2] && bx[2] > b[0] && bx[1] < b[3] && bx[3] > b[1])) return;
+          boxes.push(bx);
+          extraLayers.push(L.marker([g.lat, g.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'place tag geo dotl' + (east ? ' lft' : ''), iconSize: [0, 0],
+            html: '<i></i><span style="' + (east ? 'right:' : 'left:') + '8px"><b>' + esc(g.name) + '</b> ' + fmt(g.n) + '</span>' }) }).addTo(map));
         });
         (sc.geo37.labels || []).forEach(([lat, lon, name, n]) => extraLayers.push(L.marker([lat, lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'place tag geo', iconSize: [0, 0],
           html: '<i></i><span style="left:' + (2.2 * 0.6 * Math.sqrt(n) + 4).toFixed(0) + 'px"><b>' + esc(name) + '</b></span>' }) }).addTo(map)));
@@ -677,12 +717,13 @@
             html: '<i></i><span style="left:' + (rad(g.n) + 5).toFixed(0) + 'px"><b>' + esc(g.name) + '</b> ' + fmt(g.n) + ' · ' + geoPc(g.n) + ' %</span>' }) }).addTo(map));
         });
         sc.geo37.groups.forEach(g => {
-          const fr = g.abroad && !['Латвия', 'Польша', 'Литва', 'Эстония'].includes(g.name) && g.name !== 'Бессарабия и Румыния';
-          const col = !g.abroad ? COL_SU : fr ? COL_FR : COL_AB, mos = g.name === 'Москва', rs = false;
-          if (!mos && !rs) extraLayers.push(L.polyline(arc(g.at, CITY), { renderer: R0, interactive: false, color: col, weight: Math.max(1, Math.sqrt(g.n) / 5), opacity: 0.4 }).addTo(map));
-          if (!rs) extraLayers.push(L.circleMarker(g.at, { renderer: R0, interactive: false, radius: rad(g.n), color: '#0e0f11', weight: 1, fillColor: col, fillOpacity: 0.92 }).addTo(map));
-          extraLayers.push(L.marker(g.at, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'place tag geo' + (g.abroad ? (fr ? ' fr' : ' ab') : '') + (g.left ? ' lft' : ''), iconSize: [0, 0],
-            html: '<i></i><span style="' + (g.left ? 'right:' : 'left:') + (rs ? 0 : rad(g.n) + 5).toFixed(0) + 'px"><b>' + esc(g.name) + '</b> ' + fmt(g.n) + ' · ' + geoPc(g.n) + ' %</span>' }) }).addTo(map));
+          const lft = g.left && wide(), fr = frOf(g), plain = !!sc.geo37.dots && g.name !== 'Москва'; // точки и линии уже нарисованы: кружок и дуга не нужны, только подпись
+          const col = g.name === 'Москва' ? COL_MOS : !g.abroad ? COL_SU : fr ? COL_FR : COL_AB, mos = g.name === 'Москва';
+          if (!mos && !plain) extraLayers.push(L.polyline(arc(g.at, CITY), { renderer: R0, interactive: false, color: col, weight: Math.max(1, Math.sqrt(g.n) / 5), opacity: 0.4 }).addTo(map));
+          if (!plain) extraLayers.push(L.circleMarker(g.at, { renderer: R0, interactive: false, radius: sc.geo37.dots ? 3.5 : rad(g.n), stroke: false, fillColor: col, fillOpacity: 0.92 }).addTo(map));
+          if (mos && sc.geo37.names) return; // у Москвы здесь стоит подпись «Московская область»
+          extraLayers.push(L.marker(g.at, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'place tag geo' + (g.abroad ? (fr ? ' fr' : ' ab') : '') + (lft ? ' lft' : '') + (plain ? ' dotl' : ''), iconSize: [0, 0],
+            html: '<i></i><span style="' + (lft ? 'right:' : 'left:') + (plain ? 8 : sc.geo37.dots ? 8 : rad(g.n) + 5).toFixed(0) + 'px"><b>' + esc(g.name) + '</b>' + (mos ? '' : ' ' + fmt(g.n)) + '</span>' }) }).addTo(map));
         });
       }
       if (sc.build) raiseHouse(sc.build, sc);
@@ -755,6 +796,8 @@
         litN = want; people = order.slice(0, want).reduce((sum, m) => sum + m.n, 0);
         redrawDots();
       }
+      // кровь по умолчанию — только пока главная карточка «Это карта одного города» (решение Ильи 2026-11-21); на соседних слайдах без сцены — только с ?blood
+      const bl = act === city ? 'city' : true; if (story.blood !== bl) { story.blood = bl; redrawDots(); }
       for (; litN < want; litN++) { const m = order[litN]; story.lit.add(m); people += m.n; m.options.interactive = true; m.setStyle(storyStyle(m)); }
       for (; litN > want; litN--) { const m = order[litN - 1]; story.lit.delete(m); people -= m.n; m.options.interactive = false; m.setStyle(storyStyle(m)); }
       nEl.textContent = fmt(people);
