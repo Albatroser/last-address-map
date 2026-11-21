@@ -55,7 +55,7 @@ const View3D = (() => {
       // с какой стороны смотреть: там, где между камерой и домом меньше всего чужих зданий; при равенстве — с юга
       const fp0 = (cv.clientHeight / 2) / Math.tan(FOV / 2);
       // расстояние: дом должен занять свободную от текста часть кадра (около 0,36 ширины экрана в каждую сторону)
-      const D = Math.max(60, Math.min(430, ext * fp0 / (0.36 * cv.clientWidth)));
+      const D = Math.max(60, Math.min(430, ext * fp0 / ((cv.clientWidth >= 760 ? 0.36 : 0.38) * cv.clientWidth)));
       const eye = Math.max(EYE, D * 0.03); // издалека камера стоит чуть выше, иначе большой дом сливается в полоску
       let best = null;
       for (let k = 0; k < 16; k++) {
@@ -90,7 +90,7 @@ const View3D = (() => {
         const T = [cx0, cy0, mix(0, H * 0.42, t)];
         const f = norm(sub(T, C)), upHint = norm([0, 1 - t, t]);
         const r = norm(cross(f, upHint)), u = cross(r, f);
-        const pcx = mix(startPt.x, w >= 760 ? w * 0.66 : w * 0.5, t), pcy = mix(startPt.y, w >= 760 ? h * 0.56 : h * 0.36, t);
+        const pcx = mix(startPt.x, w >= 760 ? w * 0.66 : w * 0.5, t), pcy = mix(startPt.y, w >= 760 ? h * 0.56 : h * 0.6, t); // на телефоне холст — только верхняя часть экрана, дом стоит посередине
         const cam = p => { const d = sub(p, C); return [dot(d, r), dot(d, u), dot(d, f)]; };
         const NEAR = 0.6;
         const clip = poly => { const out = []; for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length], ina = a[2] > NEAR, inb = b[2] > NEAR;
