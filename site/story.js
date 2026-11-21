@@ -207,8 +207,6 @@
     const chinTint = new Map(); chin.forEach(x => chinTint.set(x.p, isLaundry(x) ? '#ff3b2f' : DIM));
     // самый частый день расстрела китайцев и работники прачечных, расстрелянные в этот день
     const chinDay = topDay(chin), chinDayRows = chin.filter(x => dayOf(x.p[3]) === chinDay[0]), chinDayL = chinDayRows.filter(isLaundry);
-    const chinShan = chinDayL.filter(x => /шан.?дун/i.test(x.p[6] || '')).length, chinNoParty = chinDayL.filter(x => /^б\/п/.test((x.p[8] || '').trim())).length;
-    const chinBut = chinDayL.filter(x => x.p[4] === 'Бутово').length;
     const allOf = (n, total) => n === total ? 'все' : n + ' из ' + total;
     // партийность по национальностям; на карте — латыши
     const isIn = x => partyOf(x) === 'in', inPct = rows => pct(rows.filter(isIn).length, rows.length);
@@ -396,13 +394,12 @@
         (h.note.storyMil ? '<p>Военных среди расстрелянных жильцов — ' + mil + '. ' + esc(h.note.storyRest || '') + '</p>' + // storyRest — занятия остальных, выписаны из записей базы по этому дому
           '<p class="quiet">Военные посчитаны по словам в записи о работе; о том, как менялся состав жильцов дома, в базе сведений нет.</p>' : '');
     };
-    const topHouses = bigHouses.slice(0, 5), restHouses = bigHouses.slice(5); // пять самых больших — каждый своим слайдом
+    const topHouses = bigHouses.slice(0, 4), restHouses = bigHouses.slice(4); // четыре самых больших — каждый своим слайдом, остальные — общим списком (решение Ильи 2026-11-21; было пять)
     const scenes = {
       plain: { list: housesOf(party.no), rows: party.no, city: true, blood: true },
       house: { list: restHouses, rows: null, zoom: 14, blood: 'city' }, // 'city' — кровь без ?blood, как на слайде «Это карта одного города» (Илья 2026-11-21)
       house0: { list: [], rows: null, zoom: 18, build: topHouses[0] }, house1: { list: [], rows: null, zoom: 18, build: topHouses[1] },
       house2: { list: [], rows: null, zoom: 18, build: topHouses[2] }, house3: { list: [], rows: null, zoom: 18, build: topHouses[3] },
-      house4: { list: [], rows: null, zoom: 18, build: topHouses[4] },
       twoways: { list: housesOf(twoRows), rows: twoRows, tint: twoTint, zoom: 11, pts: gravePts, lines: komLines, linesLight: butLinesNp,
         places: [['Коммунарка', 'члены партии — ' + inGr(party.in, 'Коммунарка') + ' %'], ['Бутово', 'беспартийные — ' + inGr(party.no, 'Бутово') + ' %']].map(([k, t]) => [GRAVES[k][0], GRAVES[k][1], k + ': ' + t]) },
       village: { list: housesOf(vilRows), rows: vilRows, city: true, tint: vilTint, hot: true }, // крупные и красные, и серые: серых вдвое больше, мелкими они терялись
@@ -412,7 +409,6 @@
       natwhere: { list: housesOf(three), rows: three, tint: natAllTint, zoom: 11, pts: gravePts, lines: butLines, linesDim: elseLines,
         places: ['Бутово', 'Коммунарка', 'Донское'].map(k => [GRAVES[k][0], GRAVES[k][1], k + ' — ' + pct(three.filter(x => x.p[4] === k).length, three.length) + ' %']) },
       chinese: { list: housesOf(chin), rows: chin, city: true, tint: chinTint, hot: '#ff3b2f', blood: true },
-      chinday: { list: housesOf(chinDayRows), rows: chinDayRows, zoom: 14, tint: chinTint, hot: '#ff3b2f', blood: true },
       natparty: { list: housesOf(byNat.lat), rows: byNat.lat, city: true, tint: latTint },
       sexes: { list: housesOf(men.concat(women)), rows: men.concat(women), city: true, tint: sexTint, hot: SEX_COL.f },
       natall: { list: dots, rows: P, city: true, tint: natAllTint },
@@ -476,16 +472,13 @@
         '<div class="hbars">' + pBar('латыши, поляки, немцы', inBut(three), '#ff3b2f').replace('hbar wide', 'hbar wider') + pBar('все остальные', inBut(rest), NAT_GREY).replace('hbar wide', 'hbar wider') + '</div>' +
         '<p class="quiet">Доля тех, у кого место захоронения — Бутово. Красные линии идут от домов латышей, поляков и немцев в Бутово, серые — в другие места захоронения.</p>' +
         '<p>В Бутове расстреливали без суда, по спискам. Так оформляли «национальные операции» НКВД 1937–1938 годов — аресты по национальному признаку.</p>', 'scene', 'natwhere') +
-      // китайцы и прачечные: кто они, потом один день
-      (chin.length ? sec('<p>Среди ' + foe('врагов') + ' — ' + fmt(chin.length) + ' ' + plural(chin.length, 'китаец', 'китайца', 'китайцев') + '. ' + chinL.length + ' из них работали в прачечных.</p>' +
-        '<p>Стиральщики, гладильщики, приёмщики белья. Китайские прачечные были в Москве обычным делом: в 1926 году городской справочник называл 27 частных. К 1936 году осталась одна артель — «Китайский рабочий».</p>' +
-        '<p class="quiet">Работники прачечных на карте красные, остальные китайцы — серые. Среди всех остальных людей на карте такая работа записана ' + (otherL ? 'ещё у ' + otherL : 'ни у кого') + '.</p>', 'scene', 'chinese') +
-      sec('<p>' + dayText(chinDay[0])[0].toUpperCase() + dayText(chinDay[0]).slice(1) + '.</p>' +
+      // китайцы и прачечные — один слайд (решение Ильи 2026-11-21: два слайда — перебор): кто они, один день, слова историка
+      (chin.length ? sec('<p>Среди ' + foe('врагов') + ' — ' + fmt(chin.length) + ' ' + plural(chin.length, 'китаец', 'китайца', 'китайцев') + '. ' + chinL.length + ' из них работали в прачечных: стиральщики, гладильщики, приёмщики белья.</p>' +
         '<p class="big">' + chinDay[1] + '</p>' +
-        '<p>' + plural(chinDay[1], 'китаец расстрелян', 'китайца расстреляны', 'китайцев расстреляны') + ' в один день. ' + chinDayL.length + ' из них — работники прачечных.</p>' +
-        '<p>Беспартийные — ' + allOf(chinNoParty, chinDayL.length) + '. Родом из провинции Шаньдун — ' + allOf(chinShan, chinDayL.length) + '. Место захоронения Бутово — ' + allOf(chinBut, chinDayL.length) + '.</p>' +
-        chinDayL.slice(0, 5).map(brief).join('') + (chinDayL.length > 5 ? '<p class="quiet">И ещё ' + (chinDayL.length - 5) + '. Нажми на точку, чтобы увидеть запись.</p>' : '') +
-        '<p>Историк Лидия Головкова, редактор книги памяти «Бутовский полигон», пишет, что рабочих китайских прачечных расстреливали как «троцкистов». К концу 1930-х китайской общины в Москве практически не стало.</p>', 'scene', 'chinday') : '') +
+        '<p>' + plural(chinDay[1], 'китаец расстрелян', 'китайца расстреляны', 'китайцев расстреляны') + ' в один день, ' + dayText(chinDay[0]) + '. ' + chinDayL.length + ' из них — работники прачечных.</p>' +
+        chinDayL.slice(0, 3).map(brief).join('') + (chinDayL.length > 3 ? '<p class="quiet">И ещё ' + (chinDayL.length - 3) + '. Нажми на точку, чтобы увидеть запись.</p>' : '') +
+        '<p>Историк Лидия Головкова, редактор книги памяти «Бутовский полигон», пишет, что рабочих китайских прачечных расстреливали как «троцкистов». К концу 1930-х китайской общины в Москве практически не стало.</p>' +
+        '<p class="quiet">Работники прачечных на карте красные, остальные китайцы — серые.</p>', 'scene', 'chinese') : '') +
       // кто эти враги: даже свои
       sec('<p>Партийный билет не спасал: почти половина расстрелянных — коммунисты.</p>' +
         '<p class="big">' + Math.round(commies / P.length * 100) + ' %</p>' +
@@ -652,7 +645,7 @@
     const raiseHouse = (m, sc) => { // объёмный вид с уровня глаз рисует site/view3d.js; здесь — только запуск и уборка
       const b = shapeOf(m); if (!b) return;
       const ll = m.getLatLng();
-      const start = () => { if (extraOf === sc) View3D.show({ map, rings: b, center: [ll.lat, ll.lng], onClick: () => openList(m) }); };
+      const start = () => { if (extraOf === sc) View3D.show({ map, rings: b, center: [ll.lat, ll.lng], onClick: () => openList(m), view: m.note && m.note.view }); };
       setTimeout(start, 1100); // камера карты сначала подлетает к дому
       extraUndo.push(() => { View3D.hide(); closeList(); });
     };
