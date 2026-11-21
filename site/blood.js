@@ -38,7 +38,7 @@
   const pane = map.createPane('blood');
   pane.style.zIndex = 420; pane.style.pointerEvents = 'none'; pane.style.transition = 'opacity .28s ease';
   const cv = document.createElement('canvas'), ctx = cv.getContext('2d');
-  cv.className = 'leaflet-zoom-hide';
+  cv.className = 'leaflet-zoom-animated'; // при плавной смене масштаба холст растягивается вместе с картой (см. zoomanim ниже), а не прячется
   cv.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;filter:url(#blood-goo)';
   pane.appendChild(cv);
   const overlay = map.getPane('overlayPane');
@@ -61,8 +61,10 @@
   const colorOf = c => { c = c === RED ? BLOOD : c === GREY ? DIMMED : c; // не выделенные люди остаются своим серым цветом и мельче, как у обычных точек
     let i = palIdx.get(c); if (i === undefined) { i = palette.length; palette.push(c); palIdx.set(c, i); } return i; };
 
+  let drawC = null, drawZ = 0; // середина карты и масштаб, для которых холст нарисован в последний раз
   function frame() {
     if (!dots.length) return;
+    if (map._animatingZoom) return; // идёт плавная смена масштаба: холст растянут преобразованием, перерисовка его бы сбросила
     const tStart = performance.now();
     if (!ox) alloc();
     if (!on()) { if (!cleared) { cleared = true; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); alive.fill(0); dots.forEach(m => { m._kPrev = 0; }); lastKey = ''; lastMode = null; } return; }
@@ -81,7 +83,7 @@
     const size = map.getSize(), z = map.getZoom(), sc = Math.pow(2, z), tl = map.getPixelBounds().min;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     if (W !== size.x || H !== size.y || dprNow !== dpr) { W = size.x; H = size.y; dprNow = dpr; cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px'; still = 0; }
-    L.DomUtil.setPosition(cv, map.containerPointToLayerPoint([0, 0]));
+    L.DomUtil.setPosition(cv, map.containerPointToLayerPoint([0, 0])); drawC = map.getCenter(); drawZ = map.getZoom();
 
     const moved = !prevTl || prevZ !== z || tl.x !== prevTl.x || tl.y !== prevTl.y;
     prevTl = tl; prevZ = z;
@@ -169,5 +171,12 @@
   requestAnimationFrame(loop);
   // Во время перелёта камера двигает карту на каждом кадре. Если ждать своего кадра, слой отстаёт от карты на кадр
   // и лужи съезжают со своих мест, поэтому слой пересчитывается сразу вслед за каждым движением карты.
+  // Плавная смена масштаба (колёсико, кнопки, двойное нажатие): карта растягивает свои слои преобразованием, и холст крови
+  // растягивается так же — тем же расчётом, что у слоя точек (L.Renderer._updateTransform). Раньше холст на это время прятался.
+  map.on('zoomanim', e => {
+    if (!drawC || cleared) return;
+    const scale = map.getZoomScale(e.zoom, drawZ), half = map.getSize().multiplyBy(0.5);
+    L.DomUtil.setTransform(cv, half.multiplyBy(-scale).add(map.project(drawC, e.zoom)).subtract(map._getNewPixelOrigin(e.center, e.zoom)), scale);
+  });
   map.on('move zoom', () => { try { frame(); } catch (e) { console.error(e); } }); // ошибка в пробном слое не должна ломать движение карты
 })();
