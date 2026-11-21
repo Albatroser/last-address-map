@@ -182,6 +182,10 @@ const GOLD = Math.PI * (3 - Math.sqrt(5));
 const Flock = L.CircleMarker.extend({
   _count() { return Math.max(1, this.k || this.n || 1); },
   _step() { return Math.max(flockStep(), this.options.minStep || 0); },
+  // Во вступлении погашенный дом (fillOpacity 0) не рисуется и не нажимается, поэтому его место на экране не пересчитывается:
+  // на каждом кадре полёта камеры пересчёт всех 4 584 домов занимал 30–40 мс на быстром компьютере (замер 2026-11-21).
+  // Когда дом загорается, его стиль меняется через setStyle или перед общим пересчётом — и место считается заново.
+  _project() { if (story && !this.options.fillOpacity && this._point) return; L.CircleMarker.prototype._project.call(this); },
   _updateBounds() { // радиус россыпи — для попадания мышью и границ перерисовки
     this._radius = this._step() * 0.6 * Math.sqrt(this._count()) + this._step() * 0.4 + 1;
     L.CircleMarker.prototype._updateBounds.call(this);
@@ -257,10 +261,52 @@ function redrawDots() {
 // Камера приближается или отдаляется вокруг одной неподвижной точки экрана. Если лететь надо далеко
 // и вблизи (с улицы на улицу в другом районе), полёт идёт в два приёма: отъезд на общий вид и приближение.
 // Сейчас им пользуется вступление (story.js): во время него дома рисуются так, как велит storyStyle.
-let flight = 0, flightCanvas = null, roadPath = null;
+let flight = 0, flightCanvas = null;
+// Улицы для полёта. Раньше перед каждым полётом вся сеть крупных улиц (187 тыс. точек) рисовалась заново — по разу на каждый
+// шаг масштаба, 150–220 мс на шаг на быстром компьютере: перелёт от города к карте Европы начинался с секундной паузы,
+// на телефоне — в несколько раз дольше (замер 2026-11-21). Теперь:
+//   • общие виды (шаг масштаба до 11) — картинка всей сети улиц, рисуется один раз на шаг и хранится; ниже масштаба 8
+//     берётся картинка шага 8 (город там — пятно в несколько десятков точек); мелкие улицы и лишние точки в ней пропущены;
+//   • крупные планы (шаг 12 и выше) — как раньше, только нужный прямоугольник, но рисуются не все улицы, а лишь клетки
+//     сетки, которые в него попадают.
+// Координаты улиц — в пикселях масштаба 12 относительно центра города.
+const ROAD_CELL = 128, roadCity = {};
+let roadGrid = null;
+function buildRoadGrid(C12) {
+  const lines = [], cells = new Map(), bb = [1e9, 1e9, -1e9, -1e9];
+  const add = (path, xy, thr) => { let lx = 0, ly = 0; const n = xy.length / 2;
+    for (let i = 0; i < n; i++) { const x = xy[2 * i], y = xy[2 * i + 1];
+      if (!i) path.moveTo(x, y); else if (i < n - 1 && Math.abs(x - lx) + Math.abs(y - ly) < thr) continue; else path.lineTo(x, y); // точки ближе thr пропускаются
+      lx = x; ly = y; } };
+  base.roadLines.forEach(r => {
+    const xy = new Float32Array(r.pts.length * 2); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    r.pts.forEach((p, i) => { const q = map.project(p, 12), x = q.x - C12.x, y = q.y - C12.y; xy[2 * i] = x; xy[2 * i + 1] = y; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); });
+    lines.push({ xy, ext: Math.max(x1 - x0, y1 - y0) });
+    bb[0] = Math.min(bb[0], x0); bb[1] = Math.min(bb[1], y0); bb[2] = Math.max(bb[2], x1); bb[3] = Math.max(bb[3], y1);
+    for (let cx = Math.floor(x0 / ROAD_CELL); cx <= Math.floor(x1 / ROAD_CELL); cx++) for (let cy = Math.floor(y0 / ROAD_CELL); cy <= Math.floor(y1 / ROAD_CELL); cy++) {
+      const key = cx + ',' + cy; if (!cells.has(key)) cells.set(key, new Path2D());
+      add(cells.get(key), xy, 0.4); // улица, идущая через несколько клеток, лежит в каждой: цвет непрозрачный, двойная прорисовка не видна
+    }
+  });
+  roadGrid = { lines, cells, bb, add };
+}
+const roadWidth = z => 2 * Math.max(1.4, STYLE.width.a / (156543.03 * Math.cos(55.7539 * Math.PI / 180) / Math.pow(2, z))); // ширина улицы в пикселях картинки шага z
+function roadCityLevel(z, C12) { // картинка всей сети улиц с разрешением масштаба z+1; хранится между полётами
+  if (roadCity[z]) return roadCity[z];
+  const k = Math.pow(2, z + 1 - 12), bb = roadGrid.bb, pad = 4, path = new Path2D();
+  roadGrid.lines.forEach(l => { if (l.ext * k >= 0.7) roadGrid.add(path, l.xy, 0.5 / k); }); // улицы короче 0,7 px на этой картинке не видны
+  const min = L.point((C12.x + bb[0]) * k - pad, (C12.y + bb[1]) * k - pad);
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  c.width = Math.ceil((bb[2] - bb[0]) * k) + 2 * pad; c.height = Math.ceil((bb[3] - bb[1]) * k) + 2 * pad;
+  g.setTransform(k, 0, 0, k, C12.x * k - min.x, C12.y * k - min.y);
+  g.lineWidth = roadWidth(z) / k; g.strokeStyle = STYLE.roadFar; g.lineCap = g.lineJoin = 'round';
+  g.stroke(path);
+  return (roadCity[z] = { c, min, r: 1, z });
+}
 function flyCamera(center, zoom, opts) {
   opts = opts || {};
   const my = ++flight, to = L.latLng(center), z0 = map.getZoom(), z1 = zoom, size = map.getSize(), half = size.divideBy(2);
+  if (map._laFlying) { map._laFlying = false; if (dots.length) map.getRenderer(dots[0])._reset(); } // прерван прошлый полёт: линии вступления — снова полным набором
   const end = () => { if (opts.done) opts.done(); };
   const c0 = map.project(map.getCenter(), z0), c1 = map.project(to, z1), zlo = Math.min(z0, z1), zhi = Math.max(z0, z1);
   const dist = map.project(map.getCenter(), zlo).distanceTo(map.project(to, zlo)); // расстояние в пикселях на меньшем из двух масштабов
@@ -277,25 +323,12 @@ function flyCamera(center, zoom, opts) {
     at = e => { const Z = z0 + (z1 - z0) * e; return [Z, A0.multiplyBy(Math.pow(2, Z - z0)).subtract(anchor)]; };
   } else at = e => [z0, c0.add(c1.subtract(c0).multiplyBy(e))];
 
-  // улицы одной линией, в пикселях масштаба 12 относительно центра города (считается один раз)
   const C12 = map.project([55.7539, 37.6208], 12);
-  if (!roadPath) {
-    roadPath = new Path2D();
-    base.roadLines.forEach(r => {
-      let lx = 0, ly = 0;
-      r.pts.forEach((p, i) => {
-        const q = map.project(p, 12), x = q.x - C12.x, y = q.y - C12.y;
-        if (!i) roadPath.moveTo(x, y);
-        else if (i < r.pts.length - 1 && Math.abs(x - lx) + Math.abs(y - ly) < 0.4) return; // точки ближе 0,4 px пропускаются
-        else roadPath.lineTo(x, y);
-        lx = x; ly = y;
-      });
-    });
-  }
+  if (!roadGrid) buildRoadGrid(C12);
   // Картинка для шага z покрывает всё, что видно при масштабах от z до z+1, и нарисована с разрешением масштаба z+1.
-  const mppAt = z => 156543.03 * Math.cos(to.lat * Math.PI / 180) / Math.pow(2, z);
   const eOf = Z => zooming ? (Z - z0) / (z1 - z0) : 0, levels = {}, zA = Math.floor(zlo), zB = Math.max(zA, Math.ceil(zhi) - 1);
   for (let z = zA; z <= zB; z++) {
+    if (z <= 11) { levels[z] = roadCityLevel(Math.max(8, z), C12); continue; } // общий вид: готовая картинка всей сети
     const k = Math.pow(2, z + 1 - 12);
     const rect = e => { const [Z, c] = at(e), f = Math.pow(2, z + 1 - Z); return [c.subtract(half).multiplyBy(f), c.add(half).multiplyBy(f)]; };
     const a = zooming ? rect(eOf(Math.max(z, zlo))) : rect(0), b = zooming ? rect(eOf(Math.min(z + 1, zhi))) : rect(1);
@@ -304,10 +337,12 @@ function flyCamera(center, zoom, opts) {
     const c = document.createElement('canvas'), g = c.getContext('2d');
     c.width = Math.ceil((max.x - min.x) * r); c.height = Math.ceil((max.y - min.y) * r);
     g.setTransform(k * r, 0, 0, k * r, (C12.x * k - min.x) * r, (C12.y * k - min.y) * r);
-    g.lineWidth = 2 * Math.max(1.4, STYLE.width.a / mppAt(z)) / k; // на масштабе z улица той же ширины, что в подложке
+    g.lineWidth = roadWidth(z) / k; // на масштабе z улица той же ширины, что в подложке
     g.strokeStyle = STYLE.roadFar; g.lineCap = g.lineJoin = 'round';
-    g.stroke(roadPath);
-    levels[z] = { c, min, r };
+    // рисуются только клетки сетки, попавшие в прямоугольник картинки (с запасом на ширину линии)
+    const m = 8 / k, cx0 = Math.floor((min.x / k - C12.x - m) / ROAD_CELL), cx1 = Math.floor((max.x / k - C12.x + m) / ROAD_CELL), cy0 = Math.floor((min.y / k - C12.y - m) / ROAD_CELL), cy1 = Math.floor((max.y / k - C12.y + m) / ROAD_CELL);
+    for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) { const cell = roadGrid.cells.get(cx + ',' + cy); if (cell) g.stroke(cell); }
+    levels[z] = { c, min, r, z };
   }
   if (flightCanvas) flightCanvas.remove(); // прерванный полёт
   const cv = flightCanvas = document.createElement('canvas'), ctx = cv.getContext('2d'), dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -318,11 +353,12 @@ function flyCamera(center, zoom, opts) {
   const draw = (Z, c) => {
     if (story) dots.forEach(m => { const st = storyStyle(m); if (st.radius) m._radius = st.radius; Object.assign(m.options, st); }); // без setStyle: холст и так рисуется целиком
     dotR._postponeUpdatePaths = true; dotR._reset();
-    const z = Math.max(zA, Math.min(zB, Math.floor(Z))), lv = levels[z], f = Math.pow(2, Z - (z + 1)), tl = c.subtract(half);
+    const lv = levels[Math.max(zA, Math.min(zB, Math.floor(Z)))], f = Math.pow(2, Z - (lv.z + 1)), tl = c.subtract(half); // lv.z — шаг, для которого нарисована картинка
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
     ctx.drawImage(lv.c, lv.min.x * f - tl.x, lv.min.y * f - tl.y, lv.c.width * f / lv.r, lv.c.height * f / lv.r);
   };
   map.closePopup();
+  map._laFlying = true; // пока летим, тяжёлые линии вступления рисуются прореженными (story.js, Lines)
   draw(z0, c0);
   baseCanvas.style.transition = 'opacity .25s'; baseCanvas.style.opacity = 0;
   labelPane.style.visibility = 'hidden';
@@ -337,6 +373,7 @@ function flyCamera(center, zoom, opts) {
     map._move(map.unproject(c, Z), Z, { flyTo: true });
     draw(Z, c);
     if (t < 1) return requestAnimationFrame(step);
+    map._laFlying = false; dotR._reset(); // линии — снова полным набором, с пересчётом под новый вид
     map._move(to, z1)._moveEnd(true);
     // Leaflet перерисовал подложку под новый вид: она возвращается, временный холст убирается
     baseCanvas.style.transition = 'opacity .3s'; baseCanvas.style.opacity = 1;
@@ -346,6 +383,20 @@ function flyCamera(center, zoom, opts) {
     end();
   };
   requestAnimationFrame(() => requestAnimationFrame(step)); // кадр паузы: картинки улиц успевают нарисоваться
+}
+// Мгновенная смена вида, без полёта. Нужна вступлению для дальних переходов (город ↔ карта Европы и страны): там полёт —
+// самое тяжёлое место, и вместо него карта гаснет, вид меняется разом и проявляется (решение Ильи 2026-11-21, story.js).
+// Идущий полёт прерывается, всё, что он спрятал на время, возвращается.
+function jumpCamera(center, zoom) {
+  flight++;
+  if (flightCanvas) { flightCanvas.remove(); flightCanvas = null; }
+  baseR._container.style.transition = ''; baseR._container.style.opacity = 1; labelPane.style.visibility = '';
+  map._laFlying = false;
+  map.closePopup(); map._stop();
+  const snap = map.options.zoomSnap; map.options.zoomSnap = 0; // масштаб у этих видов дробный: без этого он округлился бы до целого
+  map._resetView(L.latLng(center), zoom);
+  map.options.zoomSnap = snap;
+  redrawDots();
 }
 map.on('popupopen', e => { pickedHouse = e.popup._source && e.popup._source.byYear ? e.popup._source : null; redrawDots(); });
 map.on('popupclose', () => { pickedHouse = null; redrawDots(); });
@@ -404,6 +455,7 @@ function popupHtml(addr, people) {
     }).join('') + '</div>';
 }
 Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/house_notes.json').then(r => r.json()).catch(() => ({}))]).then(([D, NOTES]) => {
+  performance.mark('la-data'); // метки времени запуска: данные разобраны → маркеры → карта готова → вступление готово
   let people = 0;
   // окно дома не должно уходить под строку поиска; на узком экране оно ещё и уже
   const popupOpts = { maxWidth: Math.min(360, window.innerWidth - 50), autoPan: !phone(), autoPanPaddingTopLeft: [10, search.offsetHeight + 24] };
@@ -422,6 +474,7 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     m.addTo(map);
     houses.push({ addr, m, key: ' ' + norm(addr) + ' ' + (RU ? '' : norm(TL(addr)) + ' ') }); // на других языках адрес ищется и латиницей
   });
+  performance.mark('la-markers');
   const fmt = n => n.toLocaleString('ru');
 
   // ---------- справка о доме: показывается сбоку от окна (на узком экране — над окном) для домов из data/house_notes.json ----------
@@ -627,6 +680,7 @@ Promise.all([fetch('data/moscow_points.json').then(r => r.json()), fetch('data/h
     if (panel.hidden && pickedYear) pick(0); // закрытый таймлайн не должен незаметно менять карту
   };
   pick(0);
+  performance.mark('la-map');
   window.storyData = true; // данные готовы — можно начинать вступление (story.js)
   if (window.startStory) window.startStory();
 }).catch(e => {
