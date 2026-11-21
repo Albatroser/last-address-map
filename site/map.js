@@ -183,6 +183,7 @@ const Flock = L.CircleMarker.extend({
   _updatePath() {
     const r = this._renderer, o = this.options;
     if (!r._drawing || this._empty() || !o.fillOpacity) return;
+    if (window.BLOOD && window.BLOOD()) return; // эксперимент ?blood: на слайде об одном городе людей рисует слой жидкости (blood.js), маркер остаётся только для нажатий
     const ctx = r._ctx, p = this._point, st = this._step(), c = st * 0.6, rad = Math.max(0.6, st * 0.36), k = this._count();
     ctx.globalAlpha = o.fillColor === GREY ? 0.4 : 0.9;
     const hot = story && story.hot;

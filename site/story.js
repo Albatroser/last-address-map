@@ -309,7 +309,9 @@
       g.town = whole ? 0 : rows.filter(isTown).length;
       g.pts = rows.filter(x => whole || !isTown(x)).map(() => { const r = R * Math.sqrt(0.04 + 0.96 * rnd()), a = rnd() * 6.2832; return [g.lat + r * Math.sin(a), g.lon + r * Math.cos(a) * k]; });
     });
-    const geoSu = { groups: [], dots: suDots, labels: suDots.filter(g => g.town >= 60).map(g => [g.lat, g.lon, g.name, g.town]) };
+    // Кружок на место рождения, площадь — по числу людей (решение Ильи 2026-11-21; до этого была точка на человека:
+    // город — плотной россыпью, область — случайными точками в её пределах; тот вид остался в коде как geo37.dots).
+    const geoSu = { groups: [], circles: suDots, circleMin: 40 };
     // Почему «за границей»: Латвия, Польша, Литва, Эстония и Бессарабия до 1917–1918 годов входили в Российскую империю.
     // Считаем, сколько родившихся там родились до 1918 года; остальные страны — отдельно.
     const EMPIRE = new Set(['Рига', 'Либава', 'Митава', 'Двинск', 'Латвия', 'Варшава', 'Лодзь', 'Люблин', 'Радом', 'Белосток', 'Польша', 'Польша, другие места',
@@ -346,10 +348,26 @@
     // четыре примера — по правилу, а не по вкусу: первый по алфавиту дворник, домохозяйка, сторож и грузчик с короткой записью о работе (до 60 знаков)
     const plainEx = ['дворники', 'домохозяйки', 'сторожа и вахтёры', 'грузчики и чернорабочие'].map(k => { const rx = PLAIN.find(a => a[0] === k)[1];
       return party.no.filter(x => rx.test(jobText(x)) && jobText(x).length <= 60).sort((a, b) => a.p[1].localeCompare(b.p[1], 'ru'))[0]; }).filter(Boolean);
+    // Текст слайда о доме. Обычно это справка из data/house_notes.json. Если в справке есть поле story (Илья 2026-11-21: справка
+    // о Будёновском посёлке перегружена сведениями не о репрессиях), на слайде остаётся одна фраза о доме из той же справки,
+    // а дальше — только то, что считается из базы по жильцам этого дома: годы расстрелов, места захоронения и (storyMil)
+    // сколько среди них военных — по словам в записи о работе. В окне дома на свободной карте справка остаётся полной.
+    const MIL = /ркка|полковник|майор|интендант|военн|полковой комиссар|противовоздушн/;
+    const houseStory = h => {
+      if (!h.note.story) return '<p>' + esc(h.note.text) + '</p>';
+      const n = h.n, peak = h.ppl.filter(q => { const y = yearOf(q[3]); return y === 1937 || y === 1938; }).length;
+      const gr = {}; h.ppl.forEach(q => { if (q[4]) gr[q[4]] = (gr[q[4]] || 0) + 1; });
+      const grText = Object.keys(gr).sort((a, b) => gr[b] - gr[a]).map(k => esc(k) + ' — ' + gr[k]).join(', ');
+      const mil = h.ppl.filter(q => MIL.test(((q[9] || '') + ' ' + (q[5] || '')).toLowerCase())).length;
+      return '<p>' + esc(h.note.story) + '</p>' +
+        '<p>' + (peak === n ? 'Все расстреляны в 1937 и 1938 годах.' : fmt(peak) + ' из ' + fmt(n) + ' расстреляны в 1937 и 1938 годах.') + (grText ? ' Места захоронения: ' + grText + '.' : '') + '</p>' +
+        (h.note.storyMil ? '<p>Военных среди расстрелянных жильцов — ' + mil + '. ' + esc(h.note.storyRest || '') + '</p>' + // storyRest — занятия остальных, выписаны из записей базы по этому дому
+          '<p class="quiet">Военные посчитаны по словам в записи о работе; о том, как менялся состав жильцов дома, в базе сведений нет.</p>' : '');
+    };
     const topHouses = bigHouses.slice(0, 5), restHouses = bigHouses.slice(5); // пять самых больших — каждый своим слайдом
     const scenes = {
-      plain: { list: housesOf(party.no), rows: party.no, city: true },
-      house: { list: restHouses, rows: null, zoom: 14 },
+      plain: { list: housesOf(party.no), rows: party.no, city: true, blood: true },
+      house: { list: restHouses, rows: null, zoom: 14, blood: true },
       house0: { list: [], rows: null, zoom: 18, build: topHouses[0] }, house1: { list: [], rows: null, zoom: 18, build: topHouses[1] },
       house2: { list: [], rows: null, zoom: 18, build: topHouses[2] }, house3: { list: [], rows: null, zoom: 18, build: topHouses[3] },
       house4: { list: [], rows: null, zoom: 18, build: topHouses[4] },
@@ -361,8 +379,8 @@
       inland: { list: [], rows: [], zoom: 5, exact: true, pts: [[66.0, 24.0], [38.5, 24.0], [43.0, 138.0], [66.0, 138.0]], geo37: geoSu },
       natwhere: { list: housesOf(three), rows: three, tint: natAllTint, zoom: 11, pts: gravePts, lines: butLines, linesDim: elseLines,
         places: ['Бутово', 'Коммунарка', 'Донское'].map(k => [GRAVES[k][0], GRAVES[k][1], k + ' — ' + pct(three.filter(x => x.p[4] === k).length, three.length) + ' %']) },
-      chinese: { list: housesOf(chin), rows: chin, city: true, tint: chinTint, hot: '#ff3b2f' },
-      chinday: { list: housesOf(chinDayRows), rows: chinDayRows, zoom: 14, tint: chinTint, hot: '#ff3b2f' },
+      chinese: { list: housesOf(chin), rows: chin, city: true, tint: chinTint, hot: '#ff3b2f', blood: true },
+      chinday: { list: housesOf(chinDayRows), rows: chinDayRows, zoom: 14, tint: chinTint, hot: '#ff3b2f', blood: true },
       natparty: { list: housesOf(byNat.lat), rows: byNat.lat, city: true, tint: latTint },
       sexes: { list: housesOf(men.concat(women)), rows: men.concat(women), city: true, tint: sexTint, hot: SEX_COL.f },
       natall: { list: dots, rows: P, city: true, tint: natAllTint },
@@ -371,9 +389,9 @@
         places: graveList.map(k => [GRAVES[k][0], GRAVES[k][1], k + ' — ' + fmt(inGrave[k])]) },
       party: { list: dots, rows: P, city: true, tint: partyTint },
       ages: { list: housesOf(ageRows), rows: ageRows, zoom: 14, tags: true, places: ageRows.map(x => [x.m.getLatLng().lat, x.m.getLatLng().lng, x.p[1].split(' ')[0] + ', ' + x.age + ' ' + plural(x.age, 'год', 'года', 'лет')]) },
-      street: { list: street.list, rows: null, zoom: 17 },
+      street: { list: street.list, rows: null, zoom: 17, blood: true },
 
-      kremlin: { list: housesOf(kremlin), rows: null, zoom: 16 },
+      kremlin: { list: housesOf(kremlin), rows: null, zoom: 16, blood: true },
     };
     // Порядок сцен (утверждает Илья, 2026-11-20): сначала люди — любой возраст, потом «даже свои», потом масштаб.
     const sceneHtml =
@@ -405,9 +423,9 @@
         '<p class="quiet">Границы на карте — на 1937 год. Это место рождения, а не гражданство: гражданства в базе нет. За кадром карты: Китай — ' + farOf('Китай') + ', другие страны — ' + farOf('другие страны') + '.</p>', 'scene', 'abroad') +
       sec('<p>Остальные приехали в Москву со всей страны.</p>' +
         '<p class="big">' + geoPc(geoIn) + ' %</p>' +
-        '<p>' + fmt(geoIn) + ' ' + plural(geoIn, 'человек', 'человека', 'человек') + ' родились в СССР, но не в Москве. Точка на карте — человек, там, где он родился. Нажми на россыпь, чтобы увидеть имена.</p>' +
+        '<p>' + fmt(geoIn) + ' ' + plural(geoIn, 'человек', 'человека', 'человек') + ' родились в СССР, но не в Москве. Кружок на карте — место рождения: чем больше людей, тем больше кружок. Нажми на кружок, чтобы увидеть имена.</p>' +
         '<p>Москва была городом приезжих: с 1926 по 1939 год её население выросло вдвое, с 2 до 4,1 миллиона человек.</p>' +
-        '<p class="quiet">Родившиеся в городе стоят в городе. Если в записи названа только губерния или область, точка поставлена случайно в её пределах: точнее место неизвестно. ' +
+        '<p class="quiet">Площадь кружка — по числу людей. В кружок города входят и те, у кого записана только его губерния или область; если названы только край или республика, кружок стоит в их середине: точнее место неизвестно. ' +
         'Нет на карте ' + fmt(geoKnown - geoFound) + ' человек (' + geoPc(geoKnown - geoFound) + ' %), у которых названо только село или уезд.</p>', 'scene', 'inland') +
       // жители СССР: из деревни — в начальники
       sec('<p>Многие из них приехали из деревни. И в Москве стали начальниками.</p>' +
@@ -472,7 +490,7 @@
         '<p class="big">' + fmt(h.n) + '</p>' +
         '<p>' + plural(h.n, 'расстрелянный жилец', 'расстрелянных жильца', 'расстрелянных жильцов') + '.</p>' +
         '<p><button class="listbtn" data-house="' + i + '">Список жильцов</button></p>' +
-        '<p>' + esc(h.note.text) + '</p>' +
+        houseStory(h) +
         '<p class="quiet">Источники: ' + h.note.sources.map(([t, u]) => '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(t) + '</a>').join('; ') + '. Вид дома — стилизованный рисунок по современным контурам и этажности.</p>', 'scene', 'house' + i)).join('') +
       sec('<p>И ещё ' + restHouses.length + ' таких ' + plural(restHouses.length, 'дом', 'дома', 'домов') + '. В них вместе — ' + ppl(restHouses.reduce((a, m) => a + m.n, 0)) + '.</p>' +
         restHouses.map(m => '<p class="line"><b>' + fmt(m.n) + '</b> — ' + esc(m.note.title) + '</p>').join('') +
@@ -554,6 +572,7 @@
       },
       _updatePath() {
         const r = this._renderer; if (!r._drawing || this._empty()) return;
+        if (window.BLOOD_POOLS && window.BLOOD_POOLS()) return; // проба ?blood: эти точки рисует слой жидкости
         const ctx = r._ctx, p = this._point, z = this._map.getZoom(), rad = Math.max(0.7, Math.min(2.2, 0.75 * Math.pow(2, (z - 3) / 2)));
         ctx.globalAlpha = 0.9; ctx.fillStyle = this.options.fillColor; ctx.beginPath();
         const dot = (x, y) => { if (rad < 1) ctx.rect(x - rad, y - rad, rad * 2, rad * 2); else { ctx.moveTo(x + rad, y); ctx.arc(x, y, rad, 0, 6.2832); } };
@@ -606,6 +625,10 @@
       setTimeout(start, 1100); // камера карты сначала подлетает к дому
       extraUndo.push(() => { View3D.hide(); closeList(); });
     };
+    // окно со списком родившихся в одном месте (нажатие на кружок или россыпь)
+    const bornPopup = g => '<div class="born-pop"><b>' + esc(g.name) + '</b><br>' + fmt(g.n) + ' ' + plural(g.n, 'человек', 'человека', 'человек') + ' с этой карты ' + plural(g.n, 'родился', 'родились', 'родились') + ' здесь' +
+            '<div class="born-list">' + (geoRows[g.name] || []).slice().sort((a, b) => a.p[1].localeCompare(b.p[1], 'ru')).map(x =>
+              '<p><b>' + esc(x.p[1]) + '</b><br>' + (x.p[2] ? x.p[2] + ' – ' : '') + esc(x.p[3]) + ' · ' + esc(x.p[6]) + '<br>' + esc(houseText(x.m.addr)) + '</p>').join('') + '</div></div>';
     let extraOf = null, extraLayers = [];
     // перелёт без смены масштаба сам подписи не двигает — ставим их на место при каждом сдвиге карты
     const fixPlaces = () => extraLayers.forEach(l => l.update && l.update());
@@ -624,12 +647,24 @@
           for (let t = 0; t <= 1.0001; t += 0.05) out.push([(1 - t) * (1 - t) * a[0] + 2 * t * (1 - t) * mx + t * t * b[0], (1 - t) * (1 - t) * a[1] + 2 * t * (1 - t) * my + t * t * b[1]]);
           return out;
         };
+        // кружок на место рождения: площадь — по числу людей; крупные идут первыми, чтобы мелкие оказались сверху и на них можно было нажать
+        const kc = 1.25 * Math.max(0.5, Math.min(1, map.getSize().x / 1280)), zc = viewOf(sc)[1], boxes = []; // на узком экране карта мельче — и кружки мельче, пропорции те же
+        (sc.geo37.circles || []).filter(g => g.n).sort((a, b) => b.n - a.n).forEach(g => {
+          const r = Math.max(1.6, Math.sqrt(g.n) * kc);
+          const c = L.circleMarker([g.lat, g.lon], { renderer: R0, interactive: true, radius: r, color: '#0e0f11', weight: 1, fillColor: '#ff3b2f', fillOpacity: 0.82 });
+          c.bindPopup(() => bornPopup(g), { maxWidth: 340, autoPan: false });
+          extraLayers.push(c.addTo(map));
+          // подпись ставится, только если не налезает на уже поставленные (крупные места идут первыми); остальные видны по нажатию
+          const q = map.project([g.lat, g.lon], zc), bw = (g.name.length + String(g.n).length + 2) * 6.8, bx = [q.x + r + 2, q.y - 9, q.x + r + 6 + bw, q.y + 9];
+          const free = g.n >= sc.geo37.circleMin && !boxes.some(b => bx[0] < b[2] && bx[2] > b[0] && bx[1] < b[3] && bx[3] > b[1]);
+          if (free) boxes.push(bx);
+          if (free) extraLayers.push(L.marker([g.lat, g.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'place tag geo' + (g.lon > 110 ? ' lft' : ''), iconSize: [0, 0],
+            html: '<i></i><span style="' + (g.lon > 110 ? 'right:' : 'left:') + (r + 4).toFixed(0) + 'px"><b>' + esc(g.name) + '</b> ' + fmt(g.n) + '</span>' }) }).addTo(map)); // на востоке подпись слева, иначе уходит за край
+        });
         (sc.geo37.dots || []).forEach(g => { // точка на человека; нажатие открывает список родившихся в этом месте
           const f = new Scatter([g.lat, g.lon], { renderer: R0, interactive: true, color: '#ff3b2f', fillColor: '#ff3b2f', fillOpacity: 1, weight: 0 });
           f.town = g.town; f.pts = g.pts; f.n = g.n;
-          f.bindPopup(() => '<div class="born-pop"><b>' + esc(g.name) + '</b><br>' + fmt(g.n) + ' ' + plural(g.n, 'человек', 'человека', 'человек') + ' с этой карты ' + plural(g.n, 'родился', 'родились', 'родились') + ' здесь' +
-            '<div class="born-list">' + (geoRows[g.name] || []).slice().sort((a, b) => a.p[1].localeCompare(b.p[1], 'ru')).map(x =>
-              '<p><b>' + esc(x.p[1]) + '</b><br>' + (x.p[2] ? x.p[2] + ' – ' : '') + esc(x.p[3]) + ' · ' + esc(x.p[6]) + '<br>' + esc(houseText(x.m.addr)) + '</p>').join('') + '</div></div>', { maxWidth: 340, autoPan: false });
+          f.bindPopup(() => bornPopup(g), { maxWidth: 340, autoPan: false });
           extraLayers.push(f.addTo(map));
         });
         (sc.geo37.labels || []).forEach(([lat, lon, name, n]) => extraLayers.push(L.marker([lat, lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'place tag geo', iconSize: [0, 0],
@@ -668,13 +703,17 @@
     const dotPane = map.getPane('overlayPane');
     dotPane.style.transition = 'opacity .28s ease';
     let fadeT = 0, wantX = null; // wantX — дополнения сцены, которые нужно показать вместе с её домами
+    // точки карты СССР как источники капель: городская россыпь — одна лужа на город, разбросанные точки — по капле
+    const bloodPools = g => g._pools || (g._pools = g.dots.reduce((a, d) => { if (d.town) a.push([d.lat, d.lon, d.town]); (d.pts || []).forEach(q => a.push([q[0] !== undefined ? q[0] : q.lat, q[1] !== undefined ? q[1] : q.lng, 1])); return a; }, []));
     const setLit = (k, list, rows, tint, hot) => {
       if (key === k) return;
       key = k; map.closePopup();
       clearTimeout(fadeT);
       dotPane.style.opacity = 0;
       fadeT = setTimeout(() => {
-        story = { lit: new Set(list), big: list.length <= 400 || !!(rows && rows.length <= 1500), match: rows ? new Set(rows.map(x => x.p)) : null, tint: tint || null, hot: hot || null };
+        story = { lit: new Set(list), big: list.length <= 400 || !!(rows && rows.length <= 1500), match: rows ? new Set(rows.map(x => x.p)) : null, tint: tint || null, hot: hot || null,
+          // проба ?blood (blood.js): на каких слайдах люди рисуются кровью, выбирал Илья 2026-11-21; pools — точки карты СССР для того же слоя
+          blood: wantX ? !!wantX.blood : !rows && !tint, pools: wantX && wantX.blood && wantX.geo37 && wantX.geo37.dots ? bloodPools(wantX.geo37) : null };
         redrawDots();
         extras(wantX);
         dotPane.style.opacity = 1;
@@ -712,7 +751,7 @@
       if (key !== 'grow') {
         key = 'grow'; map.closePopup();
         clearTimeout(fadeT); wantX = null; extras(null); dotPane.style.opacity = 1; // здесь дома загораются сами, по прокрутке
-        story = { lit: new Set(order.slice(0, want)), big: false, match: null };
+        story = { lit: new Set(order.slice(0, want)), big: false, match: null, blood: true };
         litN = want; people = order.slice(0, want).reduce((sum, m) => sum + m.n, 0);
         redrawDots();
       }
