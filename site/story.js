@@ -329,23 +329,29 @@
     const vilEx = vilBoss.filter(x => x.p[7] && x.p[9] && x.p[9].length >= 30 && x.p[9].length <= 80 && /^(директор|начальник)/i.test(x.p[9]) && !/нквд|огпу|гулаг|лагер|гугб/i.test(x.p[9]))
       .sort((a, b) => a.p[1].localeCompare(b.p[1], 'ru')).slice(0, 3);
     // родившиеся в СССР (с Москвой) и родившиеся за границей — для сравнений
-    // Беспартийные: кем они были (доля среди беспартийных; считается по словам в записи о работе, группы могут пересекаться)
-    const NP_JOBS = [['начальники и заместители', /директор|начальник|заместител|управляющ|заведующ|(^|[^а-яё])зам\.|(^|[^а-яё])зав\./i],
-      ['инженеры и техники', /инженер|техник|конструктор|чертежник/i], ['рабочие', /рабоч|слесар|токар|шоф[её]р|грузчик|сторож|дворник|плотник|кузнец|монт[её]р|кочегар|маляр|столяр|вахтер|возчик|кладовщик/i],
-      ['бухгалтеры и экономисты', /бухгалтер|счетовод|экономист|плановик|кассир/i], ['учителя и учёные', /учител|преподавател|профессор|доцент|педагог|научн|аспирант/i],
-      ['без работы, пенсионеры', /без определен|безработ|пенсион|домохозяйк|на иждивен|инвалид|не работал/i], ['военные', /ркка|военн|арми|дивизи|комбриг|комдив|командир/i]];
-    const npBars = NP_JOBS.map(([label, rx]) => [label, pct(party.no.filter(x => rx.test(jobText(x))).length, party.no.length)]).sort((a, b) => b[1] - a[1]);
     // Два потока: партийных чаще везли в Коммунарку, беспартийных — в Бутово
     const inGr = (rows, g) => pct(rows.filter(x => x.p[4] === g).length, rows.length);
     const twoRows = party.in.concat(party.no), twoTint = new Map(); party.in.forEach(x => twoTint.set(x.p, '#ff3b2f')); party.no.forEach(x => twoTint.set(x.p, '#c9cbd1'));
     const komLines = party.in.filter(x => x.p[4] === 'Коммунарка').map(lineTo), butLinesNp = party.no.filter(x => x.p[4] === 'Бутово').map(lineTo);
+    // Обычные люди (слайд Ильи 2026-11-21): беспартийные с самыми простыми занятиями. Считается по словам в записи о работе;
+    // слово ищется с начала (чтобы «водитель» не находился в «руководителе», а «швея» — в «Москвошвее»). Один человек может попасть в две строки.
+    const PLAIN = [['шофёры', /(^|[^а-яё])шоф[её]р/i], ['слесари и токари', /(^|[^а-яё])(слесар|токар)/i], ['без определённых занятий', /без определен/i],
+      ['пенсионеры', /(^|[^а-яё])пенсионер/i], ['сторожа и вахтёры', /(^|[^а-яё])(сторож|вахт[её]р)/i], ['плотники, столяры, маляры', /(^|[^а-яё])(плотник|столяр|маляр|каменщик|печник)/i],
+      ['портные и сапожники', /(^|[^а-яё])(портн|сапожник|закройщи)/i], ['грузчики и чернорабочие', /(^|[^а-яё])(грузчик|чернорабоч|разнорабоч)/i],
+      ['домохозяйки', /домохозяйк|домашняя хозяйка/i], ['дворники', /(^|[^а-яё])дворник/i],
+      ['инженеры и техники', /инженер|техник|конструктор|чертежник/i], ['бухгалтеры и экономисты', /бухгалтер|счетовод|экономист|плановик|кассир/i], ['учителя и учёные', /учител|преподавател|профессор|доцент|педагог|научн|аспирант/i]];
+    const plainN = PLAIN.map(([label, rx]) => [label, party.no.filter(x => rx.test(jobText(x))).length]).sort((a, b) => b[1] - a[1]).slice(0, 11);
+    const nBar = (label, n) => '<div class="hbar wider2"><span>' + label + '</span><i style="background:#ff3b2f;width:' + (n / plainN[0][1] * 120).toFixed(0) + 'px"></i><b>' + fmt(n) + '</b></div>';
+    // четыре примера — по правилу, а не по вкусу: первый по алфавиту дворник, домохозяйка, сторож и грузчик с короткой записью о работе (до 60 знаков)
+    const plainEx = ['дворники', 'домохозяйки', 'сторожа и вахтёры', 'грузчики и чернорабочие'].map(k => { const rx = PLAIN.find(a => a[0] === k)[1];
+      return party.no.filter(x => rx.test(jobText(x)) && jobText(x).length <= 60).sort((a, b) => a.p[1].localeCompare(b.p[1], 'ru'))[0]; }).filter(Boolean);
     const topHouses = bigHouses.slice(0, 5), restHouses = bigHouses.slice(5); // пять самых больших — каждый своим слайдом
     const scenes = {
+      plain: { list: housesOf(party.no), rows: party.no, city: true },
       house: { list: restHouses, rows: null, zoom: 14 },
       house0: { list: [], rows: null, zoom: 18, build: topHouses[0] }, house1: { list: [], rows: null, zoom: 18, build: topHouses[1] },
       house2: { list: [], rows: null, zoom: 18, build: topHouses[2] }, house3: { list: [], rows: null, zoom: 18, build: topHouses[3] },
       house4: { list: [], rows: null, zoom: 18, build: topHouses[4] },
-      noparty: { list: housesOf(party.no), rows: party.no, city: true },
       twoways: { list: housesOf(twoRows), rows: twoRows, tint: twoTint, zoom: 11, pts: gravePts, lines: komLines, linesLight: butLinesNp,
         places: [['Коммунарка', 'члены партии — ' + inGr(party.in, 'Коммунарка') + ' %'], ['Бутово', 'беспартийные — ' + inGr(party.no, 'Бутово') + ' %']].map(([k, t]) => [GRAVES[k][0], GRAVES[k][1], k + ': ' + t]) },
       village: { list: housesOf(vilRows), rows: vilRows, city: true, tint: vilTint, hot: '#ff3b2f' },
@@ -436,22 +442,24 @@
         partyBar3([[commies, PARTY_COL.in], [party.no.length, PARTY_COL.no], [party.other.length, PARTY_COL.other]]) +
         leg3(commies, PARTY_COL.in, 'коммунисты') + leg3(party.no.length, PARTY_COL.no, 'беспартийные') + leg3(party.other.length, PARTY_COL.other, 'нет сведений и прочее') +
         '<p class="quiet">Коммунисты — это члены ВКП(б) (' + fmt(party.in.length) + '), кандидаты в члены (' + party.cand.length + '), бывшие и исключённые (' + party.ex.length + ') и члены компартий других стран (' + party.for.length + '). На карте все ' + fmt(P.length) + ' человек, цвет точки — тот же, что в полоске.</p>', 'scene', 'party') +
-      sec('<p>А остальные — инженеры, рабочие, бухгалтеры, учителя.</p>' +
-        '<p class="big white">' + fmt(party.no.length) + '</p>' +
-        '<p>' + plural(party.no.length, 'беспартийный', 'беспартийных', 'беспартийных') + ' — больше половины. На карте сейчас только они.</p>' +
-        '<div class="hbars">' + npBars.map(([label, v]) => pBar(label, v, '#ff3b2f').replace('hbar wide', 'hbar wider')).join('') + '</div>' +
-        '<p class="quiet">Доля среди беспартийных. Считается по словам в записи о работе; один человек может попасть в две строки.</p>', 'scene', 'noparty') +
-      sec('<p>Расстреливали их по-разному. Партийных чаще везли в Коммунарку, беспартийных — в Бутово.</p>' +
-        '<div class="hbars">' + pBar('члены партии: Коммунарка', inGr(party.in, 'Коммунарка'), '#ff3b2f').replace('hbar wide', 'hbar wider2') + pBar('беспартийные: Коммунарка', inGr(party.no, 'Коммунарка'), NAT_GREY).replace('hbar wide', 'hbar wider2') +
-        pBar('беспартийные: Бутово', inGr(party.no, 'Бутово'), '#c9cbd1').replace('hbar wide', 'hbar wider2') + pBar('члены партии: Бутово', inGr(party.in, 'Бутово'), NAT_GREY).replace('hbar wide', 'hbar wider2') + '</div>' +
-        '<p>В Коммунарке хоронили в основном тех, кого приговорила Военная коллегия Верховного суда. В Бутове расстреливали без суда, по спискам.</p>' +
-        '<p class="quiet">На карте члены партии красные, беспартийные светлые. Красные линии — от домов партийных в Коммунарку, светлые — от домов беспартийных в Бутово.</p>', 'scene', 'twoways') +
       sec('<p>Самыми партийными среди ' + foe('врагов') + ' были латыши.</p>' +
         '<p class="big">' + inPct(byNat.lat) + ' %</p>' +
         '<p>' + fmt(byNat.lat.filter(isIn).length) + ' из ' + fmt(byNat.lat.length) + ' латышей на карте были членами ВКП(б). Среди всех расстрелянных — ' + inPct(P) + ' %.</p>' +
         '<div class="split"><i style="background:#ff3b2f;flex:' + byNat.lat.filter(isIn).length + '"></i><i style="background:#9a9ca3;flex:' + (byNat.lat.length - byNat.lat.filter(isIn).length) + '"></i></div>' +
         '<p class="quiet">На карте только латыши: красные — члены партии, серые — остальные.</p>' +
         '<p>Латышские стрелки поддержали большевиков ещё в 1917 году, и многие латыши занимали высокие государственные посты.</p>', 'scene', 'natparty') +
+      // обычные люди: один слайд о беспартийных — от инженера до дворника (объединён с «А остальные…», решение Ильи 2026-11-21)
+      sec('<p>' + foe('Врагом') + ' мог оказаться и самый обычный человек: без партбилета, без должности, без власти.</p>' +
+        '<p class="big">' + fmt(party.no.length) + '</p>' +
+        '<p>' + plural(party.no.length, 'беспартийный', 'беспартийных', 'беспартийных') + ' — больше половины. На карте сейчас только они.</p>' +
+        '<div class="hbars">' + plainN.map(([label, n]) => nBar(label, n)).join('') + '</div>' +
+        plainEx.map(x => '<p class="line"><b>' + esc(x.p[1]) + '</b><br>' + (x.p[2] ? x.p[2] + ' – ' : '') + esc(x.p[3]) + ' · ' + esc(jobText(x)) + '<br>' + esc(houseText(x.m.addr)) + '</p>').join('') +
+        '<p class="quiet">Число человек с таким словом в записи о работе; один человек может попасть в две строки, а у многих работа другая. Нажми на точку, чтобы увидеть запись.</p>', 'scene', 'plain') +
+      sec('<p>Расстреливали их по-разному. Партийных чаще везли в Коммунарку, беспартийных — в Бутово.</p>' +
+        '<div class="hbars">' + pBar('члены партии: Коммунарка', inGr(party.in, 'Коммунарка'), '#ff3b2f').replace('hbar wide', 'hbar wider2') + pBar('беспартийные: Коммунарка', inGr(party.no, 'Коммунарка'), NAT_GREY).replace('hbar wide', 'hbar wider2') +
+        pBar('беспартийные: Бутово', inGr(party.no, 'Бутово'), '#c9cbd1').replace('hbar wide', 'hbar wider2') + pBar('члены партии: Бутово', inGr(party.in, 'Бутово'), NAT_GREY).replace('hbar wide', 'hbar wider2') + '</div>' +
+        '<p>В Коммунарке хоронили в основном тех, кого приговорила Военная коллегия Верховного суда. В Бутове расстреливали без суда, по спискам.</p>' +
+        '<p class="quiet">На карте члены партии красные, беспартийные светлые. Красные линии — от домов партийных в Коммунарку, светлые — от домов беспартийных в Бутово.</p>', 'scene', 'twoways') +
       (kremlin.length ? sec('<p>Не помогала и близость к власти. ' + foe('Враги') + ' жили прямо в Кремле.</p><p>Но это не те, о ком ты подумал.</p>' +
         '<p>' + ppl(kremlin.length)[0].toUpperCase() + ppl(kremlin.length).slice(1) + '. ' + krGuard + ' из них служили в комендатуре и охране Кремля.</p>' +
         kremlin.slice(0, 5).map(brief).join('') + (kremlin.length > 5 ? '<p class="quiet">И ещё ' + (kremlin.length - 5) + '. Нажми на точку, чтобы увидеть всех.</p>' : '') +
