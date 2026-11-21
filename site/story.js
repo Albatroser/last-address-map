@@ -489,7 +489,7 @@
       inland: { list: [], rows: [], zoom: 5, exact: true, pts: [[64.0, 24.0], [39.0, 24.0], [43.0, 100.0], [64.0, 100.0]], ptsNarrow: [[62.0, 24.0], [40.0, 24.0], [41.0, 62.0]], geo37: geoSu }, // кадр — европейская часть и Сибирь до Красноярска (на телефоне — до Урала): там почти все; линии с востока уходят за край
       natwhere: { list: housesOf(three), rows: three, tint: natAllTint, zoom: 11, pts: gravePts, lines: butLines, linesDim: elseLines,
         places: ['Бутово', 'Коммунарка', 'Донское'].map(k => [GRAVES[k][0], GRAVES[k][1], k + ' — ' + pct(three.filter(x => x.p[4] === k).length, three.length) + ' %']) },
-      chinese: { list: housesOf(chin), rows: chin, city: true, tint: chinTint, hot: '#ff3b2f' }, // без крови даже с ?blood (Илья 2026-11-21: «верни обычные точки»)
+      chinese: { list: housesOf(chin), rows: chin, city: true, tint: chinTint, small: true, hot: true }, // small + hot: true — средний размер точек, как на слайде об арестах: крупные кружки Илья убрал, а обычные точки (63 на весь город) не видны (2026-11-21); без крови даже с ?blood
       natparty: { list: housesOf(byNat.lat), rows: byNat.lat, city: true, tint: latTint },
       sexes: { list: housesOf(men.concat(women)), rows: men.concat(women), city: true, tint: sexTint, hot: SEX_COL.f },
       natall: { list: dots, rows: P, city: true, tint: natAllTint },
@@ -880,16 +880,51 @@
     let fadeT = 0, wantX = null; // wantX — дополнения сцены, которые нужно показать вместе с её домами
     // точки карты СССР как источники капель: городская россыпь — одна лужа на город, разбросанные точки — по капле
     const bloodPools = g => g._pools || (g._pools = g.dots.reduce((a, d) => { if (d.town) a.push([d.lat, d.lon, d.town]); (d.pts || []).forEach(q => a.push([q[0] !== undefined ? q[0] : q.lat, q[1] !== undefined ? q[1] : q.lng, 1])); return a; }, []));
-    const setLit = (k, list, rows, tint, hot) => {
+    const mkStory = (list, rows, tint, hot, small) => ({ lit: new Set(list), big: !small && (list.length <= 400 || !!(rows && rows.length <= 1500)), match: rows ? new Set(rows.map(x => x.p)) : null, tint: tint || null, hot: hot || null,
+      // весь город без выделения (вопросы до ответа) — кровь по умолчанию ('city'), как на «Это карта одного города»
+      // проба ?blood (blood.js): на каких слайдах люди рисуются кровью, выбирал Илья 2026-11-21; pools — точки карты СССР для того же слоя
+      blood: wantX ? wantX.blood || false : !rows && !tint ? 'city' : false, pools: wantX && wantX.blood && wantX.geo37 && wantX.geo37.dots ? bloodPools(wantX.geo37) : null });
+    // Смена сцены на том же виде карты — вразнобой (решение Ильи 2026-11-21: «всё через тёмненький фейд — некрасиво»; волна
+    // от центра тоже отклонена: «просто рандомно зажигаются и гаснут»). Точки не гаснут все разом: дома в случайном порядке
+    // переходят из прежней сцены в новую — гаснут, загораются или меняют цвет. Пока это идёт, story — смесь двух сцен:
+    // у домов, которые уже перешли, всё от новой, у остальных — от прежней. Перекрашиваются только дома этого шага.
+    // Если вместе со сценой меняется вид (камера летит), остаётся прежнее: точки гаснут и загораются уже на новом месте.
+    let waveT = 0, waveEnd = null, camNow = false;
+    const dropWave = () => { clearInterval(waveT); waveEnd = null; };
+    const wave = next => {
+      const old = story, ctx = s => ({ big: s.big, litN: s.lit.size, matchN: s.match ? s.match.size : null, hot: s.hot || null }), c0 = ctx(old), c1 = ctx(next), near = new Set();
+      const peopleOf = (s, m) => !s.lit.has(m) ? [] : s.match ? m.ppl.filter(q => s.match.has(q)) : m.ppl;
+      const lit = new Set(old.lit), match = old.match || next.match ? new Set() : null, tint = match && (old.tint || next.tint) ? new Map() : null;
+      if (match) old.lit.forEach(m => peopleOf(old, m).forEach(q => { match.add(q); if (tint && old.tint && old.tint.has(q)) tint.set(q, old.tint.get(q)); }));
+      story = { lit, big: next.big, match, tint, hot: next.hot, blood: false, pools: null, side: m => near.has(m) ? c1 : c0 };
+      extras(wantX);
+      const flip = m => {
+        near.add(m);
+        if (match) peopleOf(old, m).forEach(q => { match.delete(q); if (tint) tint.delete(q); });
+        if (next.lit.has(m)) lit.add(m); else lit.delete(m);
+        if (match) peopleOf(next, m).forEach(q => { match.add(q); if (tint && next.tint && next.tint.has(q)) tint.set(q, next.tint.get(q)); });
+        storyDot(m);
+      };
+      const ord = dots.slice(); for (let i = ord.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)), t = ord[i]; ord[i] = ord[j]; ord[j] = t; } // случайный порядок, каждый раз свой
+      const t0 = performance.now(); let done = 0;
+      waveEnd = () => { story = next; redrawDots(); };
+      const tick = () => {
+        if (!story || !waveEnd) return clearInterval(waveT);
+        const f = Math.min(1, (performance.now() - t0) / 700), upto = Math.round(f * ord.length);
+        for (; done < upto; done++) flip(ord[done]);
+        if (f >= 1) { const end = waveEnd; dropWave(); end(); }
+      };
+      waveT = setInterval(tick, 50); tick();
+    };
+    const setLit = (k, list, rows, tint, hot, small) => {
       if (key === k) return;
       key = k; map.closePopup();
       clearTimeout(fadeT);
+      if (waveEnd) { const end = waveEnd; dropWave(); end(); } // прежняя волна не дошла — доводим её разом
+      if (!camNow && story && story.lit && dotPane.style.opacity !== '0') return wave(mkStory(list, rows, tint, hot, small));
       dotPane.style.opacity = 0;
       fadeT = setTimeout(() => {
-        story = { lit: new Set(list), big: list.length <= 400 || !!(rows && rows.length <= 1500), match: rows ? new Set(rows.map(x => x.p)) : null, tint: tint || null, hot: hot || null,
-          // весь город без выделения (вопросы до ответа) — кровь по умолчанию ('city'), как на «Это карта одного города»
-          // проба ?blood (blood.js): на каких слайдах люди рисуются кровью, выбирал Илья 2026-11-21; pools — точки карты СССР для того же слоя
-          blood: wantX ? wantX.blood || false : !rows && !tint ? 'city' : false, pools: wantX && wantX.blood && wantX.geo37 && wantX.geo37.dots ? bloodPools(wantX.geo37) : null };
+        story = mkStory(list, rows, tint, hot, small);
         redrawDots();
         extras(wantX);
         dotPane.style.opacity = 1;
@@ -904,7 +939,7 @@
     const WHEN_COL = ['#ff3b2f', '#b02a22', '#74201b', '#4a1815']; // от недавних арестов к давним
     let whenShown = -1; const DAY = 864e5, W0 = Date.UTC(1936, 0, 1), W1 = Date.UTC(1939, 5, 30), whenEl = box.querySelector('[data-when]'), whenN = box.querySelector('[data-whenn]');
     const whenPlay = q => {
-      if (key !== 'when') { key = 'when'; whenShown = -1; map.closePopup(); clearTimeout(fadeT); wantX = null; extras(null); dotPane.style.opacity = 1; }
+      if (key !== 'when') { key = 'when'; whenShown = -1; map.closePopup(); clearTimeout(fadeT); dropWave(); wantX = null; extras(null); dotPane.style.opacity = 1; }
       const step = Math.round(Math.max(0, Math.min(1, q)) * (W1 - W0) / (5 * DAY)); if (step === whenShown) return; // шаг шкалы — пять дней
       whenShown = step;
       // Арестованные не исчезают с карты, а тускнеют (Илья: «затухание, чтобы был виден нарастающий масштаб, а не ёлочная гирлянда»):
@@ -921,7 +956,7 @@
     const rehabPlay = sc => {
       if (key === 'scene:rehab') return;
       if (key !== 'scene:charges') return setLit('scene:rehab', sc.list, sc.rows, sc.tint, sc.hot);
-      key = 'scene:rehab'; map.closePopup(); clearTimeout(fadeT); clearInterval(rehT); dotPane.style.opacity = 1;
+      key = 'scene:rehab'; map.closePopup(); clearTimeout(fadeT); dropWave(); clearInterval(rehT); dotPane.style.opacity = 1;
       const t0 = performance.now(), tint = new Map(chTint), all = new Set(P.map(x => x.p)), lit = new Set(dots); let done = 0;
       const tick = () => {
         if (!story || key !== 'scene:rehab') return clearInterval(rehT);
@@ -934,7 +969,7 @@
       rehT = setInterval(tick, 80); tick();
     };
     const update = () => {
-      queued = false;
+      queued = false; camNow = false;
       if (!story) return; // вступление пропущено
       // высоты считаются от верха ленты: на телефоне она начинается не от верха экрана, а под картой
       const vh = box.clientHeight, boxTop = box.getBoundingClientRect().top, top = el => el.getBoundingClientRect().top - boxTop, mark = vh * (wide() ? 0.6 : 0.45);
@@ -949,10 +984,10 @@
       if (vk !== viewKey || (userMoved && act !== lastAct)) {
         viewKey = vk; userMoved = false;
         const v = vk === 'city' ? cityView : viewOf(sc);
-        inFlight = true; clearTimeout(jumpT);
+        inFlight = true; camNow = true; clearTimeout(jumpT);
         // Дальний переход (город ↔ карта Европы или страны, и между этими картами) — без полёта: карта гаснет, вид меняется
         // разом, карта проявляется (решение Ильи 2026-11-21). Полёт с тысячами линий был самым тяжёлым местом вступления.
-        if (Math.abs(map.getZoom() - v[1]) >= 3 || map.getZoom() < 9 || v[1] < 9) {
+        if (map.getZoom() < 9 || v[1] < 9) { // только карты мест рождения (масштаб мельче 9); к Кремлю, домам и улицам камера летит
           mapEl.style.transition = 'opacity .25s'; mapEl.style.opacity = 0;
           jumpT = setTimeout(() => { if (!story) return; jumpCamera(v[0], v[1]); mapEl.style.opacity = 1; setTimeout(() => { inFlight = false; }, 50); }, 270);
         } else {
@@ -963,7 +998,7 @@
       lastAct = act;
       if (act.dataset.scene === 'when') { const r = act.getBoundingClientRect(); return whenPlay((mark - (r.top - boxTop)) / Math.max(1, r.height - vh * 0.35)); }
       if (act.dataset.scene === 'rehab') return rehabPlay(sc);
-      if (sc) return setLit('scene:' + act.dataset.scene, sc.list, sc.rows, sc.tint, sc.hot);
+      if (sc) return setLit('scene:' + act.dataset.scene, sc.list, sc.rows, sc.tint, sc.hot, sc.small);
       // финал: красные — те, у кого на доме есть табличка «Последнего адреса», остальные серые
       if (top(finS) < mark) return plaqueTint ? setLit('fin', dots, P, plaqueTint, '#f5b83d') : setLit('all', dots, null);
       if (ageS && top(ageS) < mark) return ageState();
@@ -972,7 +1007,7 @@
       const q = Math.max(0, Math.min(1, (vh * 0.75 - top(city)) / (vh * 0.45))), want = Math.round(q * q * order.length);
       if (key !== 'grow') {
         key = 'grow'; map.closePopup();
-        clearTimeout(fadeT); wantX = null; extras(null); dotPane.style.opacity = 1; // здесь дома загораются сами, по прокрутке
+        clearTimeout(fadeT); dropWave(); wantX = null; extras(null); dotPane.style.opacity = 1; // здесь дома загораются сами, по прокрутке
         story = { lit: new Set(order.slice(0, want)), big: false, match: null, blood: true };
         litN = want; people = order.slice(0, want).reduce((sum, m) => sum + m.n, 0);
         redrawDots();

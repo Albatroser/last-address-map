@@ -196,7 +196,7 @@ const Flock = L.CircleMarker.extend({
     if (window.BLOOD && window.BLOOD()) return; // эксперимент ?blood: на слайде об одном городе людей рисует слой жидкости (blood.js), маркер остаётся только для нажатий
     const ctx = r._ctx, p = this._point, st = this._step(), c = st * 0.6, rad = Math.max(0.6, st * 0.36), k = this._count();
     ctx.globalAlpha = o.fillColor === GREY ? 0.4 : 0.9;
-    const hot = story && story.hot;
+    const hot = story && (story.side ? story.side(this).hot : story.hot);
     const cols = this.cols && this.cols.length === k ? this.cols : null; // цвета точек по одной на человека (одинаковые идут подряд)
     for (let i = 0; i < k;) {
       const col = cols ? cols[i] : o.fillColor;
@@ -222,17 +222,25 @@ const RED = '#ff3b2f', GREY = '#8d8f94';
 // match: набор людей, подошедших под ответы посетителя (в окне дома выделены только они), или null };
 // остальные дома не видны. После вступления story = null и карта работает как обычно.
 let story = null;
+// Размер точек сцены зависит от того, крупная ли она (big) и сколько в ней домов и людей. Обычно это одно на всю карту.
+// Пока по карте идёт волна от одной сцены к другой (story.side задаёт story.js), у домов, до которых волна уже дошла,
+// эти числа — от новой сцены, у остальных — от прежней: story.side(m) → { big, litN, matchN, hot }.
 const storyStyle = m => {
   if (!story.lit.has(m)) return { opacity: 0, fillOpacity: 0 };
-  const st = dotStyle(m.n);
-  return Object.assign({ color: RED, fillColor: RED, opacity: 1, minStep: 0 }, st, story.big ? { radius: Math.max(story.lit.size <= 60 ? 5 : 3, st.radius), weight: 1, fillOpacity: 0.55, minStep: (story.match ? story.match.size <= 200 : story.lit.size <= 6) ? 6 : story.match && story.match.size <= 1500 ? 4.6 : 3 } : {});
+  const st = dotStyle(m.n), c = story.side ? story.side(m) : null;
+  const big = c ? c.big : story.big, litN = c ? c.litN : story.lit.size, matchN = c ? c.matchN : story.match ? story.match.size : null;
+  return Object.assign({ color: RED, fillColor: RED, opacity: 1, minStep: 0 }, st, big ? { radius: Math.max(litN <= 60 ? 5 : 3, st.radius), weight: 1, fillOpacity: 0.55, minStep: (matchN !== null ? matchN <= 200 : litN <= 6) ? 6 : matchN !== null && matchN <= 1500 ? 4.6 : 3 } : {});
 };
+// один дом во вступлении: горит ли, какие его люди видны и каким цветом
+function storyDot(m) {
+  m.options.interactive = story.lit.has(m); const mine = story.match && story.lit.has(m) ? m.ppl.filter(q => story.match.has(q)) : null;
+  m.k = mine && mine.length || m.n; m.cols = story.tint && mine && mine.length ? mine.map(q => story.tint.get(q) || RED).sort() : null; // цвет каждой точки, если сцена красит людей
+  m.setStyle(storyStyle(m));
+}
 // Открыт дом — красным остаётся только он. Выбрана улица в поиске — красными остаются только её дома. Выбран год: дома, где в этот год кого-то расстреляли, — такие же полупрозрачные красные круги, как на всех годах, поверх остальных
 // (размер — по числу за этот год); все прочие дома остаются на месте, но серые (размер — по общему числу).
 function redrawDots() {
-  if (story) { dots.forEach(m => { m.options.interactive = story.lit.has(m); const mine = story.match && story.lit.has(m) ? m.ppl.filter(q => story.match.has(q)) : null;
-    m.k = mine && mine.length || m.n; m.cols = story.tint && mine && mine.length ? mine.map(q => story.tint.get(q) || RED).sort() : null; // цвет каждой точки, если сцена красит людей
-    m.setStyle(storyStyle(m)); });
+  if (story) { dots.forEach(storyDot);
     if (story.hot) dots.forEach(m => { if (m.cols && m.cols.includes(story.hot === true ? RED : story.hot)) m.bringToFront(); }); // дома с выделенными людьми — поверх остальных
     return; } // сцена про людей: в доме горят только они // погашенные дома не нажимаются
   // открытый дом: красным остаётся только он; если он стоит на выбранной улице — вся улица
