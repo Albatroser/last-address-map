@@ -682,9 +682,11 @@
     // слайд о местах рождения отъезжает далеко от Москвы; после вступления возвращается 10
     HANDLERS.forEach(h => map[h] && map[h].disable()); // колёсико листает ленту, а не приближает карту
     // Мышью карту можно двигать и приближать (перетаскивание, двойной щелчок, кнопки + и −): на следующем слайде
-    // камера сама вернётся куда нужно. На телефоне палец листает ленту, поэтому там карта неподвижна.
-    const canMove = window.matchMedia('(pointer: fine)').matches;
-    if (canMove) { map.dragging.enable(); map.doubleClickZoom.enable(); }
+    // камера сама вернётся куда нужно. На телефоне карта — отдельная верхняя часть экрана, лента под ней, поэтому там
+    // карту тоже можно двигать пальцем и приближать двумя (Илья 2026-11-22: «на мобиле нет зума на карте»).
+    // Неподвижной карта остаётся только на широком сенсорном экране: там лента лежит поверх неё, и палец листает ленту.
+    const canMove = window.matchMedia('(pointer: fine)').matches || !wide();
+    if (canMove) { map.dragging.enable(); map.doubleClickZoom.enable(); map.touchZoom.enable(); }
     document.body.classList.toggle('story-move', canMove);
     map.closePopup();
     // город — чуть правее середины экрана, слева от него идёт текст.
@@ -1044,7 +1046,7 @@
       if (!moving) { moving = true; put = box.scrollTop; last = performance.now(); requestAnimationFrame(glide); }
     };
     let touchY = null;
-    const onTouchStart = e => { moving = false; target = box.scrollTop; touchY = !box.contains(e.target) && !popup(e) ? e.touches[0].clientY : null; };
+    const onTouchStart = e => { moving = false; target = box.scrollTop; touchY = !box.contains(e.target) && !popup(e) && !(canMove && mapEl.contains(e.target)) ? e.touches[0].clientY : null; }; // палец на карте двигает карту, а не ленту
     const onTouchMove = e => { if (touchY === null) return; const y = e.touches[0].clientY; box.scrollTop += touchY - y; touchY = y; };
     document.addEventListener('wheel', onWheel, { passive: false });
     document.addEventListener('touchstart', onTouchStart, { passive: true });
