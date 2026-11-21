@@ -194,7 +194,7 @@ const Flock = L.CircleMarker.extend({
       ctx.beginPath();
       for (; i < k && (!cols || cols[i] === col); i++) {
         const d = c * Math.sqrt(i), a = i * GOLD, x = p.x + d * Math.cos(a), y = p.y + d * Math.sin(a);
-        const r2 = hot === col ? Math.max(1.6, rad * 2) : rad; // выделенный цвет сцены — крупнее
+        const r2 = hot === col || hot === true ? Math.max(1.6, rad * 2) : rad; // выделенный цвет сцены — крупнее; hot === true — крупные все цвета
         if (r2 < 1) ctx.rect(x - r2, y - r2, r2 * 2, r2 * 2); else { ctx.moveTo(x + r2, y); ctx.arc(x, y, r2, 0, 6.2832); }
       }
       ctx.fill();
@@ -223,7 +223,7 @@ function redrawDots() {
   if (story) { dots.forEach(m => { m.options.interactive = story.lit.has(m); const mine = story.match && story.lit.has(m) ? m.ppl.filter(q => story.match.has(q)) : null;
     m.k = mine && mine.length || m.n; m.cols = story.tint && mine && mine.length ? mine.map(q => story.tint.get(q) || RED).sort() : null; // цвет каждой точки, если сцена красит людей
     m.setStyle(storyStyle(m)); });
-    if (story.hot) dots.forEach(m => { if (m.cols && m.cols.includes(story.hot)) m.bringToFront(); }); // дома с выделенными людьми — поверх остальных
+    if (story.hot) dots.forEach(m => { if (m.cols && m.cols.includes(story.hot === true ? RED : story.hot)) m.bringToFront(); }); // дома с выделенными людьми — поверх остальных
     return; } // сцена про людей: в доме горят только они // погашенные дома не нажимаются
   // открытый дом: красным остаётся только он; если он стоит на выбранной улице — вся улица
   const house = pickedHouse && !(pickedStreet && pickedStreet.has(pickedHouse)) ? pickedHouse : null;

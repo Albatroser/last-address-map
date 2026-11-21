@@ -71,13 +71,22 @@ body.story-on.story-move #map{cursor:grab}
 .place.geo span{font-size:12px;color:#c9cbd1}
 .place.geo span b{color:#fff;font-weight:600}
 .place.geo.lft span{left:auto}
-.place.geo.ab span b{color:#ff8a80}
+.place.geo.ab span b{color:#fff}
 .place.geo.fr span b{color:#f5b83d}
+/* подпись поверх россыпи точек — на тёмной подложке, иначе белый текст теряется в белых точках */
+.place.geo.dotl span{background:rgba(14,15,17,.6);padding:0 5px;border-radius:2px}
+.place.geo.dotl i{display:none}
 #story .leg2{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 4px}
 #story .leg2 i{width:10px;height:10px;border-radius:2px;flex:none}
 /* полоска-пропорция из двух частей */
 #story .split{display:flex;gap:2px;height:12px;max-width:340px;margin:12px 0 10px}
 #story .split i{border-radius:2px;min-width:3px}
+/* сквозная полоска слайдов о месте рождения: вся полоса — люди с известным местом рождения */
+#story .split.geobar{margin:14px 0 6px}
+#story .geokey{font-size:12.5px;line-height:1.6;margin:0 0 14px}
+#story .geokey span{white-space:nowrap;margin-right:10px;opacity:.5}
+#story .geokey span.on{opacity:1;color:#ddd}
+#story .geokey span i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
 #story .hbars{margin:14px 0 10px;max-width:340px}
 #story .hbar{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:14px;color:#bbb}
 #story .hbar span{width:64px;flex:none}
@@ -165,4 +174,5 @@ body.story-on.story-move #map{cursor:grab}
   #house-list .leaflet-popup-content{font-size:14px;margin:16px 18px 24px}
   #house-list .x{top:8px;right:10px;width:38px;height:38px;background:#26282d;border-radius:50%;padding:0}
   .place span{font-size:11px}
+  .place.geo.dotl span{font-size:10px;line-height:14px;padding:0 3px;top:-7px;left:4px!important}
 }
