@@ -17,7 +17,8 @@ body.story-on.story-move #map{cursor:grab}
 #story{position:fixed;inset:0;z-index:910;overflow-y:auto;overflow-x:hidden;pointer-events:none;color:#ddd;font:19px/1.5 system-ui,sans-serif;
   background:linear-gradient(90deg,rgba(14,15,17,.85) 0,rgba(14,15,17,.6) 34%,rgba(14,15,17,0) 62%);scrollbar-width:none}
 #story::-webkit-scrollbar{display:none}
-#story .step{min-height:85vh;display:flex;align-items:center;padding:0 6vw;box-sizing:border-box}
+/* отступы сверху и снизу — чтобы длинные карточки не слипались с соседними (после добавления обвинений в строки с именами текст стал выше экрана) */
+#story .step{min-height:85vh;display:flex;align-items:center;padding:24vh 6vw;box-sizing:border-box}
 #story .step.first,#story .step.city{min-height:100vh}
 #story .step.ask{min-height:100vh;padding-top:12vh;padding-bottom:12vh}
 #story .card{max-width:460px;width:100%;pointer-events:auto}
@@ -81,6 +82,21 @@ body.story-on.story-move #map{cursor:grab}
 /* полоска-пропорция из двух частей */
 #story .split{display:flex;gap:2px;height:12px;max-width:340px;margin:12px 0 10px}
 #story .split i{border-radius:2px;min-width:3px}
+/* подзаголовок части, обвинение в строке о человеке, столбики по годам и месяцам */
+#story .chap{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#8a8c92;margin:0 0 12px}
+#story .line .chg{color:#c9837b}
+#story .spot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+.leaflet-container a.spot-src,.sheet a.spot-src{display:inline-block;margin-top:6px;color:#aaa;font-size:11.5px}
+/* высокая карточка: текст «прилипает», пока лента проходит её высоту (слайд с анимацией арестов по прокрутке) */
+#story .step.long{min-height:320vh;align-items:flex-start}
+#story .step.long .card{position:sticky;top:30vh}
+#story .whenline{font-size:19px;margin:14px 0 6px;font-variant-numeric:tabular-nums}
+#story .whenline b{color:#fff;text-transform:capitalize}
+#story .whenline span{color:#aaa;font-size:15px}
+#story .ybars{display:flex;align-items:flex-end;gap:2px;height:84px;max-width:340px;margin:14px 0 4px;border-bottom:1px solid #33353b}
+#story .ybars span{flex:1;height:100%;display:flex;align-items:flex-end}
+#story .ybars i{display:block;width:100%;min-height:1px;border-radius:1px 1px 0 0}
+#story .yax{display:flex;justify-content:space-between;max-width:340px;font-size:11.5px;color:#888;margin:0 0 12px}
 /* сквозная полоска слайдов о месте рождения: вся полоса — люди с известным местом рождения */
 #story .split.geobar{margin:14px 0 6px}
 #story .geokey{font-size:12.5px;line-height:1.6;margin:0 0 14px}
@@ -148,11 +164,13 @@ body.story-on.story-move #map{cursor:grab}
   #view3d{height:42vh!important;height:42dvh!important;bottom:auto!important}
   #story-skip{top:10px;right:10px;padding:7px 10px;background:rgba(14,15,17,.75);border-radius:14px;color:#aaa;text-decoration:none}
   #story{top:42vh;top:42dvh;font-size:16px;line-height:1.45;background:#0e0f11;border-top:1px solid #2b2d33;box-shadow:0 -14px 22px rgba(14,15,17,.85)}
-  #story .step,#story .step.first,#story .step.city,#story .step.ask{min-height:58vh;min-height:58dvh;padding:22px 18px 30px;align-items:flex-start}
+  #story .step,#story .step.first,#story .step.city,#story .step.ask{min-height:58vh;min-height:58dvh;padding:22px 18px 84px;align-items:flex-start}
   #story .step{opacity:.3;transition:opacity .35s}
   #story .step.act{opacity:1}
   #story .step+.step{border-top:1px solid #1f2126}
   #story .card{max-width:none}
+  #story .step.long{min-height:260vh;min-height:260dvh}
+  #story .step.long .card{top:22px}
   #story .scene .card{font-size:16px}
   #story .scene .card>p:first-child{font-size:20px;line-height:1.3}
   #story .age .card>p:first-child,#story .age .card>p:nth-child(2){font-size:17px}
@@ -162,7 +180,7 @@ body.story-on.story-move #map{cursor:grab}
   #story .q{font-size:20px;margin-top:0}
   #story .cta{font-size:20px}
   #story .cue{margin-top:18px}
-  #story .hbars,#story .split{max-width:none}
+  #story .hbars,#story .split,#story .ybars,#story .yax{max-width:none}
   #story .hbar.wider2{font-size:13px}
   #story .hbar.wider2 span{width:166px}
   #story .hbar.wider{flex-wrap:wrap;row-gap:2px}
